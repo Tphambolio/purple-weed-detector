@@ -86,6 +86,16 @@ echo "==> Building frontend with VITE_API_BASE_URL=$FUNCTION_URL"
 
 cd "$WEB_DIR"
 
+# Install JS deps if missing (fresh clone in Cloud Shell, CI runner, etc.).
+if [ ! -d "node_modules" ]; then
+  echo "==> Installing JS deps (one-time)..."
+  if [ -f "package-lock.json" ]; then
+    npm ci --silent
+  else
+    npm install --silent
+  fi
+fi
+
 # --base "/$BUCKET/" prefixes all asset URLs so they resolve correctly under
 # https://storage.googleapis.com/$BUCKET/index.html (which serves the bucket
 # under a path, not at the origin root).

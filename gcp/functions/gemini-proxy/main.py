@@ -50,12 +50,28 @@ def _cors_headers(extra: Optional[dict] = None) -> dict:
 
 
 def _get_api_key() -> Optional[str]:
-    """Fetch the Gemini API key from Secret Manager. Cached after first call."""
+    """Fetch the Gemini API key from Secret Manager. Cached after first call.
+
+    Project discovery order:
+      1. google.auth.default() — works in Cloud Run / Functions gen2 via the
+         metadata server, no env vars required
+      2. GCP_PROJECT / GOOGLE_CLOUD_PROJECT env vars (gen1 convention, kept
+         as a fallback so the function still runs locally with `functions-framework`)
+    """
     global _API_KEY
     if _API_KEY is not None:
         return _API_KEY
 
-    project_id = os.environ.get("GCP_PROJECT") or os.environ.get("GOOGLE_CLOUD_PROJECT")
+    project_id = None
+    try:
+        import google.auth
+        _, project_id = google.auth.default()
+    except Exception:
+        project_id = None
+
+    if not project_id:
+        project_id = os.environ.get("GCP_PROJECT") or os.environ.get("GOOGLE_CLOUD_PROJECT")
+
     if not project_id:
         return None
 

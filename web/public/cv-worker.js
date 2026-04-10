@@ -3,7 +3,10 @@
 // run HSV mask + morph close + connected components, and return the
 // blob list (rescaled back to native pixel coords).
 
-importScripts('/opencv.js')
+// Relative path: resolves against the worker's own URL, so it works
+// whether the worker is served from origin root or a path prefix
+// (e.g. /<bucket>/cv-worker.js → /<bucket>/opencv.js).
+importScripts('./opencv.js')
 
 const PURPLE_LOWER = [120, 30, 30]
 const PURPLE_UPPER = [165, 255, 255]

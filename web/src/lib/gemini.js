@@ -1,12 +1,23 @@
 // Gemini Vision client. Two modes:
-//   - Direct: calls generativelanguage.googleapis.com using a key from the
-//     env (Phase 1, local dev). NEVER use this in a deployed build.
-//   - Proxy:  calls /api/gemini on the same origin (Phase 2). Cloudflare
-//     Pages Function holds the key + checks a shared password.
+//   - Direct: calls generativelanguage.googleapis.com using a key from
+//     VITE_GEMINI_API_KEY (local dev only — never ship a build with the
+//     key embedded).
+//   - Proxy:  POSTs to a server-side proxy that holds the key. The proxy
+//     URL comes from VITE_API_BASE_URL at build time. If unset, falls back
+//     to the deployed Cloudflare Pages function on the same origin so
+//     existing local-dev workflows keep working without changes.
 //
 // The interface is the same: analyzeCrop(jpegBlob, weeds) -> result object.
 
 const MODEL = 'gemini-2.5-flash'
+
+// Resolve the proxy endpoint:
+//   - Set VITE_API_BASE_URL=https://<region>-<project>.cloudfunctions.net/gemini-proxy
+//     for the GCP Cloud Function deployment.
+//   - Leave it unset to keep hitting the original Cloudflare Pages function
+//     at /api/gemini on the same origin.
+const PROXY_URL =
+  import.meta.env.VITE_API_BASE_URL || 'https://purple-weed-detector.pages.dev/api/gemini'
 
 const WEED_DESCRIPTIONS = {
   purple_loosestrife: 'Purple Loosestrife (Lythrum salicaria) — tall spikes of magenta-purple flowers, wetland edges',
@@ -96,7 +107,7 @@ async function callDirect(jpegBlob, prompt) {
 async function callProxy(jpegBlob, prompt) {
   const password = localStorage.getItem('access_password') || ''
   const b64 = await blobToBase64(jpegBlob)
-  const res = await fetch('/api/gemini', {
+  const res = await fetch(PROXY_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

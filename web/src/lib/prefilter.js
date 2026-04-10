@@ -11,7 +11,10 @@ const pending = new Map()
 
 function getWorker() {
   if (workerInstance) return workerInstance
-  workerInstance = new Worker('/cv-worker.js')
+  // import.meta.env.BASE_URL respects vite's --base flag, so the worker
+  // resolves correctly whether we're at origin root (Cloudflare) or under
+  // a path prefix like /<bucket>/ (GCS static hosting).
+  workerInstance = new Worker(import.meta.env.BASE_URL + 'cv-worker.js')
   workerInstance.onmessage = (e) => {
     const { id, ok, result, error } = e.data
     const p = pending.get(id)

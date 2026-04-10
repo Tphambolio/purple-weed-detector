@@ -1,8 +1,13 @@
+import { useState } from 'react'
+
 export default function FolderInput({
   folder, setFolder,
+  driveFolder, setDriveFolder,
   selectedWeeds, setSelectedWeeds,
-  weedOptions, onScan, onCancel, scanning,
+  weedOptions, onScan, onScanDrive, onCancel, scanning,
 }) {
+  const [source, setSource] = useState('local') // 'local' | 'drive'
+
   const toggleWeed = (value) => {
     if (value === 'any') {
       setSelectedWeeds(['any'])
@@ -18,21 +23,59 @@ export default function FolderInput({
     })
   }
 
+  const isLocal = source === 'local'
+  const activeValue = isLocal ? folder : driveFolder
+  const handleScan = isLocal ? onScan : onScanDrive
+
   return (
     <div className="scan-panel">
-      <div className="input-group">
-        <label>Photo Folder Path</label>
-        <input
-          type="text"
-          value={folder}
-          onChange={e => setFolder(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && !scanning && folder && onScan()}
-          placeholder="/path/to/photos"
-          className="folder-input"
+      <div className="source-tabs">
+        <button
+          className={`source-tab${isLocal ? ' active' : ''}`}
+          onClick={() => setSource('local')}
           disabled={scanning}
-          spellCheck={false}
-        />
+        >
+          Local Folder
+        </button>
+        <button
+          className={`source-tab${!isLocal ? ' active' : ''}`}
+          onClick={() => setSource('drive')}
+          disabled={scanning}
+        >
+          Google Drive
+        </button>
       </div>
+
+      {isLocal ? (
+        <div className="input-group">
+          <label>Photo Folder Path</label>
+          <input
+            type="text"
+            value={folder}
+            onChange={e => setFolder(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && !scanning && folder && onScan()}
+            placeholder="/path/to/photos"
+            className="folder-input"
+            disabled={scanning}
+            spellCheck={false}
+          />
+        </div>
+      ) : (
+        <div className="input-group">
+          <label>Google Drive Folder URL or ID</label>
+          <input
+            type="text"
+            value={driveFolder}
+            onChange={e => setDriveFolder(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && !scanning && driveFolder && onScanDrive()}
+            placeholder="https://drive.google.com/drive/folders/1AbC...XyZ"
+            className="folder-input"
+            disabled={scanning}
+            spellCheck={false}
+          />
+          <p className="hint">First scan opens a browser for Google sign-in.</p>
+        </div>
+      )}
 
       <div className="weed-select">
         <label>Target Species</label>
@@ -54,7 +97,11 @@ export default function FolderInput({
         {scanning ? (
           <button className="btn-danger" onClick={onCancel}>Cancel</button>
         ) : (
-          <button className="btn-primary" onClick={onScan} disabled={!folder.trim()}>
+          <button
+            className="btn-primary"
+            onClick={handleScan}
+            disabled={!activeValue?.trim()}
+          >
             Start Scan
           </button>
         )}

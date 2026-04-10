@@ -16,6 +16,7 @@ const API = 'http://localhost:8000'
 
 export default function App() {
   const [folder, setFolder] = useState('')
+  const [driveFolder, setDriveFolder] = useState('')
   const [selectedWeeds, setSelectedWeeds] = useState(['any'])
   const [scanning, setScanning] = useState(false)
   const [progress, setProgress] = useState(null)
@@ -23,17 +24,16 @@ export default function App() {
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const readerRef = useRef(null)
 
-  const startScan = async () => {
-    if (!folder.trim()) return
+  const runScan = async (endpoint, body) => {
     setScanning(true)
     setResults([])
     setProgress({ status: 'scanning', total: 0, processed: 0, detected: 0 })
 
     try {
-      const response = await fetch(`${API}/api/scan`, {
+      const response = await fetch(`${API}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folder: folder.trim(), weeds: selectedWeeds }),
+        body: JSON.stringify(body),
       })
 
       if (!response.ok) throw new Error(`Server error: ${response.status}`)
@@ -81,6 +81,16 @@ export default function App() {
     }
   }
 
+  const startScan = () => {
+    if (!folder.trim()) return
+    runScan('/api/scan', { folder: folder.trim(), weeds: selectedWeeds })
+  }
+
+  const startDriveScan = () => {
+    if (!driveFolder.trim()) return
+    runScan('/api/scan-drive', { folder: driveFolder.trim(), weeds: selectedWeeds })
+  }
+
   const cancelScan = () => {
     readerRef.current?.cancel()
     setScanning(false)
@@ -91,17 +101,20 @@ export default function App() {
     <div className="app">
       <header className="header">
         <h1>Purple Weed Detector</h1>
-        <p>Scan photo folders for invasive purple weeds using Claude Vision + OpenCV</p>
+        <p>Scan photo folders for invasive purple weeds using Gemini Vision + OpenCV</p>
       </header>
 
       <main className="main">
         <FolderInput
           folder={folder}
           setFolder={setFolder}
+          driveFolder={driveFolder}
+          setDriveFolder={setDriveFolder}
           selectedWeeds={selectedWeeds}
           setSelectedWeeds={setSelectedWeeds}
           weedOptions={WEED_OPTIONS}
           onScan={startScan}
+          onScanDrive={startDriveScan}
           onCancel={cancelScan}
           scanning={scanning}
         />

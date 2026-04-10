@@ -1,8 +1,8 @@
 # Purple Weed Detector
 
-Scan a folder of photos for invasive purple weeds using **OpenCV pre-filtering** + **Claude Vision AI**.
+Scan a folder of photos for invasive purple weeds using **OpenCV pre-filtering** + **Gemini Vision AI**.
 
-![Stack](https://img.shields.io/badge/FastAPI-backend-009688?style=flat-square) ![Stack](https://img.shields.io/badge/React-frontend-61dafb?style=flat-square) ![Stack](https://img.shields.io/badge/Claude%20Haiku-vision-a855f7?style=flat-square)
+![Stack](https://img.shields.io/badge/FastAPI-backend-009688?style=flat-square) ![Stack](https://img.shields.io/badge/React-frontend-61dafb?style=flat-square) ![Stack](https://img.shields.io/badge/Gemini%202.5%20Flash-vision-a855f7?style=flat-square)
 
 ## How it works
 
@@ -11,7 +11,7 @@ Photos folder
     ↓
 OpenCV HSV mask        ← fast purple pixel pre-filter (eliminates ~70% of API calls)
     ↓ (purple found)
-Claude Haiku Vision    ← species identification
+Gemini 2.5 Flash       ← species identification
     ↓
 SQLite cache           ← skip re-scanning unchanged photos
     ↓
@@ -33,7 +33,7 @@ React gallery          ← Detected / Clean / All tabs, real-time SSE stream
 
 - Python 3.11+
 - Node.js 18+
-- Anthropic API key
+- Google Gemini API key
 
 ### Backend
 
@@ -43,7 +43,7 @@ python -m venv .venv
 source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-export ANTHROPIC_API_KEY=sk-ant-...
+export GEMINI_API_KEY=...
 uvicorn main:app --reload --port 8000
 ```
 
@@ -77,7 +77,7 @@ chmod +x run.sh && ./run.sh
 |---|---|
 | `backend/main.py` | FastAPI app, SSE endpoint, image proxy |
 | `backend/prefilter.py` | OpenCV HSV purple-pixel filter |
-| `backend/analyzer.py` | Claude Haiku vision API calls |
+| `backend/analyzer.py` | Gemini Vision API calls |
 | `backend/scanner.py` | Async folder walk + pipeline orchestration |
 | `backend/database.py` | SQLite results cache |
 | `frontend/src/App.jsx` | Root state, SSE stream consumer |
@@ -87,7 +87,7 @@ chmod +x run.sh && ./run.sh
 
 | Variable | Required | Description |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Yes | Your Anthropic API key |
+| `GEMINI_API_KEY` | Yes | Your Google Gemini API key |
 
 ## Tuning the pre-filter
 

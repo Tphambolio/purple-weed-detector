@@ -52,7 +52,10 @@ export default function PhotoGallery({ results, selected, onSelect, apiBase }) {
               <div className="gallery-label">
                 <span className="filename">{photo.filename}</span>
                 {photo.detected && (
-                  <span className="badge-weed">{photo.species || 'Weed detected'}</span>
+                  <span className="badge-weed">
+                    {(photo.detections?.filter(d => d.is_match).length || 0) || 1} ·{' '}
+                    {photo.species || 'weed'}
+                  </span>
                 )}
               </div>
             </div>

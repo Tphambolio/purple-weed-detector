@@ -1,0 +1,130 @@
+// Gemini Vision client. Two modes:
+//   - Direct: calls generativelanguage.googleapis.com using a key from the
+//     env (Phase 1, local dev). NEVER use this in a deployed build.
+//   - Proxy:  calls /api/gemini on the same origin (Phase 2). Cloudflare
+//     Pages Function holds the key + checks a shared password.
+//
+// The interface is the same: analyzeCrop(jpegBlob, weeds) -> result object.
+
+const MODEL = 'gemini-2.5-flash'
+
+const WEED_DESCRIPTIONS = {
+  purple_loosestrife: 'Purple Loosestrife (Lythrum salicaria) — tall spikes of magenta-purple flowers, wetland edges',
+  thistle: 'thistle species (Canada Thistle Cirsium arvense, Nodding Thistle Carduus nutans) — spiny leaves, pink-purple flower heads',
+  dames_rocket: "Dame's Rocket (Hesperis matronalis) — 4-petalled purple/white flowers, common urban edges",
+}
+
+function buildCropPrompt(weeds) {
+  let target, hint
+  if (weeds.includes('any')) {
+    target = 'any purple/magenta flowering weed or invasive plant'
+    hint = 'Possible species: Purple Loosestrife (Lythrum salicaria), Canada Thistle (Cirsium arvense), Nodding Thistle (Carduus nutans), Dame\'s Rocket (Hesperis matronalis).'
+  } else {
+    target = weeds.map(w => WEED_DESCRIPTIONS[w]).filter(Boolean).join('; ')
+    hint = ''
+  }
+
+  return `This is a tight crop from a drone aerial photo (~150 m altitude) centered on a purple object.
+Identify whether the purple thing in this crop is ${target}, or something else (purple non-plant: tarp, jacket, paint, dye, vehicle).
+${hint}
+
+Respond ONLY with a JSON object — no markdown, no extra text:
+{
+  "is_plant": true or false,
+  "species": "species name or 'unknown' or 'not a plant'",
+  "confidence": "high" | "medium" | "low",
+  "description": "one short sentence describing the purple object"
+}`
+}
+
+async function blobToBase64(blob) {
+  const buf = await blob.arrayBuffer()
+  // Browser-safe base64 of binary bytes.
+  let binary = ''
+  const bytes = new Uint8Array(buf)
+  const chunkSize = 0x8000
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize))
+  }
+  return btoa(binary)
+}
+
+function parseJsonLoose(text) {
+  if (!text) return null
+  let s = text.trim()
+  if (s.startsWith('```')) {
+    const parts = s.split('```')
+    s = (parts[1] || s).replace(/^json/i, '').trim()
+  }
+  try { return JSON.parse(s) } catch { return null }
+}
+
+async function callDirect(jpegBlob, prompt) {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY
+  if (!apiKey) throw new Error('VITE_GEMINI_API_KEY not set (Phase 1 local dev only)')
+
+  const b64 = await blobToBase64(jpegBlob)
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`
+  const body = {
+    contents: [{
+      parts: [
+        { inline_data: { mime_type: 'image/jpeg', data: b64 } },
+        { text: prompt },
+      ],
+    }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      maxOutputTokens: 512,
+      thinkingConfig: { thinkingBudget: 0 },
+    },
+  }
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const errText = await res.text()
+    throw new Error(`Gemini ${res.status}: ${errText.slice(0, 200)}`)
+  }
+  const data = await res.json()
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+  return text
+}
+
+async function callProxy(jpegBlob, prompt) {
+  const password = localStorage.getItem('access_password') || ''
+  const b64 = await blobToBase64(jpegBlob)
+  const res = await fetch('/api/gemini', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Access-Password': password,
+    },
+    body: JSON.stringify({ image_b64: b64, prompt }),
+  })
+  if (!res.ok) {
+    const t = await res.text()
+    throw new Error(`Proxy ${res.status}: ${t.slice(0, 200)}`)
+  }
+  const data = await res.json()
+  return data.text || ''
+}
+
+// Auto-select: if a same-origin /api/gemini exists at build time, use proxy.
+// Phase 1 just uses the direct path.
+const USE_PROXY = !!import.meta.env.VITE_USE_PROXY
+
+export async function analyzeCrop(jpegBlob, weeds) {
+  const prompt = buildCropPrompt(weeds)
+  const raw = USE_PROXY ? await callProxy(jpegBlob, prompt) : await callDirect(jpegBlob, prompt)
+  const parsed = parseJsonLoose(raw)
+  if (parsed) return parsed
+  return {
+    is_plant: false,
+    species: 'unknown',
+    confidence: 'low',
+    description: raw.slice(0, 200),
+  }
+}

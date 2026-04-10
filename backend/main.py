@@ -3,8 +3,8 @@ from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 
-from models import ScanRequest
-from scanner import scan_folder
+from models import ScanRequest, DriveScanRequest
+from scanner import scan_folder, scan_drive_folder
 from database import get_folder_results
 
 app = FastAPI(title="Purple Weed Detector API", version="1.0.0")
@@ -22,6 +22,24 @@ async def scan(request: ScanRequest):
     """Stream scan results via Server-Sent Events."""
     async def event_stream():
         async for status in scan_folder(request.folder, request.weeds, request.force_rescan):
+            yield f"data: {status.model_dump_json()}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+@app.post("/api/scan-drive")
+async def scan_drive(request: DriveScanRequest):
+    """Stream scan results for a Google Drive folder via SSE."""
+    async def event_stream():
+        async for status in scan_drive_folder(request.folder, request.weeds, request.force_rescan):
             yield f"data: {status.model_dump_json()}\n\n"
 
     return StreamingResponse(

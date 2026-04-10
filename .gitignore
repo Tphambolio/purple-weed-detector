@@ -10,6 +10,11 @@ venv/
 # Database
 backend/results.db
 
+# Google Drive OAuth — DO NOT COMMIT
+backend/credentials.json
+backend/.drive-token.json
+.purple-weed-cache/
+
 # Frontend
 frontend/node_modules/
 frontend/dist/

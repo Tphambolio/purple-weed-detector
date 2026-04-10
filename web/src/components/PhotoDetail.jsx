@@ -1,14 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 
-export default function PhotoDetail({ photo, onClose, apiBase }) {
+export default function PhotoDetail({ photo, onClose }) {
   const imgRef = useRef(null)
-  const [imgBox, setImgBox] = useState(null) // {w, h} of the rendered <img>
+  const [imgBox, setImgBox] = useState(null)
   const [hover, setHover] = useState(null)
 
-  // Track the rendered <img> size so we can scale bbox coordinates.
-  useEffect(() => {
-    setImgBox(null)
-  }, [photo.path])
+  useEffect(() => { setImgBox(null) }, [photo.hash])
 
   useEffect(() => {
     const el = imgRef.current
@@ -22,7 +19,7 @@ export default function PhotoDetail({ photo, onClose, apiBase }) {
       el.removeEventListener('load', update)
       ro.disconnect()
     }
-  }, [photo.path])
+  }, [photo.hash])
 
   const detections = photo.detections || []
   const matches = detections.filter(d => d.is_match)
@@ -53,11 +50,7 @@ export default function PhotoDetail({ photo, onClose, apiBase }) {
         <div className="detail-content">
           <div className="detail-image">
             <div className="image-frame">
-              <img
-                ref={imgRef}
-                src={`${apiBase}/api/image?path=${encodeURIComponent(photo.path)}`}
-                alt={photo.filename}
-              />
+              <img ref={imgRef} src={photo.previewUrl} alt={photo.filename} />
               {sx > 0 && detections.map((d, i) => (
                 <div
                   key={i}
@@ -79,7 +72,7 @@ export default function PhotoDetail({ photo, onClose, apiBase }) {
 
           <div className="detail-info">
             <h2>{photo.filename}</h2>
-            <p className="detail-path">{photo.path}</p>
+            <p className="detail-path">{photo.width} × {photo.height}</p>
 
             <div className={`detection-badge ${photo.detected ? 'positive' : 'negative'}`}>
               {photo.detected
@@ -120,9 +113,7 @@ export default function PhotoDetail({ photo, onClose, apiBase }) {
 
             <div className="detail-status">
               <span>Status: {photo.status}</span>
-              {photo.width && photo.height && (
-                <span>{photo.width} × {photo.height}</span>
-              )}
+              {photo.fromCache && <span>(from cache)</span>}
             </div>
           </div>
         </div>

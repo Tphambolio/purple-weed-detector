@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-export default function PhotoGallery({ results, selected, onSelect, apiBase }) {
+export default function PhotoGallery({ results, selected, onSelect }) {
   const [tab, setTab] = useState('detected')
 
   const detected = results.filter(r => r.detected === true)
@@ -38,28 +38,26 @@ export default function PhotoGallery({ results, selected, onSelect, apiBase }) {
         </div>
       ) : (
         <div className="gallery-grid">
-          {display.map(photo => (
-            <div
-              key={photo.path}
-              className={`gallery-item${photo.detected ? ' flagged' : ''}${selected?.path === photo.path ? ' selected' : ''}`}
-              onClick={() => onSelect(photo)}
-            >
-              <img
-                src={`${apiBase}/api/image?path=${encodeURIComponent(photo.path)}`}
-                alt={photo.filename}
-                loading="lazy"
-              />
-              <div className="gallery-label">
-                <span className="filename">{photo.filename}</span>
-                {photo.detected && (
-                  <span className="badge-weed">
-                    {(photo.detections?.filter(d => d.is_match).length || 0) || 1} ·{' '}
-                    {photo.species || 'weed'}
-                  </span>
-                )}
+          {display.map(photo => {
+            const matchCount = (photo.detections || []).filter(d => d.is_match).length
+            return (
+              <div
+                key={photo.hash}
+                className={`gallery-item${photo.detected ? ' flagged' : ''}${selected?.hash === photo.hash ? ' selected' : ''}`}
+                onClick={() => onSelect(photo)}
+              >
+                <img src={photo.previewUrl} alt={photo.filename} loading="lazy" />
+                <div className="gallery-label">
+                  <span className="filename">{photo.filename}</span>
+                  {photo.detected && (
+                    <span className="badge-weed">
+                      {matchCount || 1} · {photo.species || 'weed'}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
-if [ -z "$ANTHROPIC_API_KEY" ]; then
-  echo "Error: ANTHROPIC_API_KEY is not set"
-  echo "  export ANTHROPIC_API_KEY=sk-ant-..."
+if [ -z "$GEMINI_API_KEY" ]; then
+  echo "Error: GEMINI_API_KEY is not set"
+  echo "  export GEMINI_API_KEY=..."
   exit 1
 fi
 

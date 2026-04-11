@@ -14,6 +14,7 @@ import {
 import { computeDhash, blobToThumbnailB64 } from './phash.js'
 import { SPECIES, getSpeciesById } from './species.js'
 import { COLOR_CLASSES } from './colorClasses.js'
+import { extractPhotoMeta } from './exif.js'
 
 
 // ───────────────────────── HITL verdict helpers (pure) ─────────────────────────
@@ -186,6 +187,13 @@ export async function scanFile(file, weeds, {
     }
   }
 
+  // Pull EXIF metadata (date already passed in via opts; we need photo_location
+  // for the records backend / map view).
+  let photoMeta = null
+  try { photoMeta = await extractPhotoMeta(file) } catch {}
+  const photoLocation = photoMeta?.location || null
+  const photoCamera = photoMeta?.model || photoMeta?.camera || null
+
   // Derive colour classes from the selected species. The resulting array
   // drives both the CV worker masks AND the Gemini prompt context — Phase 3
   // adds species-aware prompts.
@@ -223,6 +231,8 @@ export async function scanFile(file, weeds, {
       detections: [],
       previewUrl,
       photo_date: photoDate ? new Date(photoDate).toISOString() : null,
+      photo_location: photoLocation,
+      photo_camera: photoCamera,
       target_species: targetSpecies.map(s => s.id),
     }
     await putResult(result)
@@ -313,6 +323,8 @@ export async function scanFile(file, weeds, {
     class_counts,
     previewUrl,
     photo_date: photoDate ? new Date(photoDate).toISOString() : null,
+    photo_location: photoLocation,
+    photo_camera: photoCamera,
     target_species: targetSpecies.map(s => s.id),
   }
   await putResult(result)

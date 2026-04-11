@@ -5,6 +5,7 @@ import PhotoGallery from './components/PhotoGallery'
 import PhotoDetail from './components/PhotoDetail'
 import SpeciesCalendar from './components/SpeciesCalendar'
 import ScienceTab from './components/ScienceTab'
+import WeedMap from './components/WeedMap'
 import {
   scanFile,
   applyVerdictToDetection,
@@ -15,6 +16,7 @@ import { clearCache, putResult, recordVerdict, removeVerdict } from './lib/db'
 import { SPECIES } from './lib/species'
 import { getActiveSpecies } from './lib/phenology'
 import { earliestPhotoDate } from './lib/exif'
+import { publishConfirmedDetections, recordsEnabled } from './lib/records'
 import './index.css'
 
 export default function App() {
@@ -134,6 +136,14 @@ export default function App() {
         processed, detected,
         current_file: file.name,
       })
+
+      // Auto-publish AI-confirmed matches to the records backend so they
+      // appear on the team-wide map. Skips silently if records are disabled
+      // (no VITE_RECORDS_URL) or the photo has no GPS in EXIF.
+      if (result.detected && recordsEnabled() && result.photo_location) {
+        publishConfirmedDetections(result).catch(e => console.warn('publish failed', e))
+      }
+
       await new Promise(r => setTimeout(r, 0))
     }
 
@@ -168,6 +178,11 @@ export default function App() {
     setResults(prev => prev.map(r => (r.hash === photo.hash ? updatedPhoto : r)))
     setSelectedPhoto(updatedPhoto)
     try { await putResult(updatedPhoto) } catch (e) { console.error(e) }
+    // Re-publish to records backend so the human verdict overrides the
+    // AI's snapshot. Idempotent — same photo_hash + blob_index doc.
+    if (recordsEnabled() && updatedPhoto.photo_location) {
+      publishConfirmedDetections(updatedPhoto).catch(e => console.warn('publish failed', e))
+    }
     await persistVerdict(updatedPhoto, blobIndex, {
       ai_verdict: det.ai_snapshot ?? {
         species: det.species,
@@ -251,8 +266,9 @@ export default function App() {
             Edmonton Weed Detector
           </span>
         </div>
-        <div className="hidden md:flex items-center gap-8">
+        <div className="hidden md:flex items-center gap-7">
           <button className={tabClass('scan')} onClick={() => setTab('scan')}>Scan</button>
+          <button className={tabClass('map')} onClick={() => setTab('map')}>Map</button>
           <button className={tabClass('calendar')} onClick={() => setTab('calendar')}>Calendar</button>
           <button className={tabClass('science')} onClick={() => setTab('science')}>Science</button>
         </div>
@@ -318,6 +334,7 @@ export default function App() {
               hasFiles={files.length > 0}
             />
           )}
+          {tab === 'map' && <WeedMap />}
           {tab === 'calendar' && <SpeciesCalendar photoDate={photoDate} />}
           {tab === 'science' && <ScienceTab />}
         </main>
@@ -328,6 +345,10 @@ export default function App() {
         <button className={mobileTabClass('scan')} onClick={() => setTab('scan')}>
           <span className="material-symbols-outlined text-lg">target</span>
           <span className="text-[9px] uppercase tracking-widest font-semibold">Scan</span>
+        </button>
+        <button className={mobileTabClass('map')} onClick={() => setTab('map')}>
+          <span className="material-symbols-outlined text-lg">map</span>
+          <span className="text-[9px] uppercase tracking-widest font-semibold">Map</span>
         </button>
         <button className={mobileTabClass('calendar')} onClick={() => setTab('calendar')}>
           <span className="material-symbols-outlined text-lg">calendar_today</span>
@@ -377,7 +398,7 @@ function EmptyState({ onChoosePhotos, hasFiles }) {
           backgroundSize: '24px 24px',
         }}
       />
-      <div className="relative max-w-2xl w-full p-8 md:p-12 rounded-[2rem] bg-surface-container-low/80 backdrop-blur-2xl text-center space-y-6 md:space-y-8">
+      <div className="relative max-w-3xl w-full p-7 md:p-10 rounded-[2rem] bg-surface-container-low/80 backdrop-blur-2xl text-center space-y-6">
         <div className="relative inline-block">
           <div className="absolute -inset-4 bg-primary/20 blur-3xl rounded-full" />
           <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-full bg-surface-container-highest flex items-center justify-center mx-auto">
@@ -386,23 +407,61 @@ function EmptyState({ onChoosePhotos, hasFiles }) {
             </span>
           </div>
         </div>
-        <div className="space-y-3 md:space-y-4">
-          <h1 className="text-2xl md:text-4xl font-extrabold tracking-tight text-on-surface">
+        <div className="space-y-3">
+          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-on-surface">
             Upload drone photos to begin
           </h1>
-          <p className="text-on-surface-variant text-sm md:text-base font-light leading-relaxed max-w-md mx-auto">
-            Detects 18 regulated invasive weed species across the Edmonton river valley. Photos stay on your device — only small crops are sent to Gemini Vision for classification.
+          <p className="text-on-surface-variant text-sm font-light leading-relaxed max-w-md mx-auto">
+            Detects 18 regulated invasive weed species across the Edmonton river valley.
+            Photos stay on your device — only small crops are sent to Gemini Vision.
           </p>
         </div>
-        <div className="flex flex-col items-center gap-4">
+
+        {/* ── Pilot capture guidelines ───────────────────────── */}
+        <div className="text-left bg-surface-container-lowest/60 rounded-2xl p-5 md:p-6 max-w-xl mx-auto">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="material-symbols-outlined text-primary text-lg">flight</span>
+            <span className="text-[10px] uppercase tracking-[0.18em] font-bold text-primary">
+              Pilot capture guidelines
+            </span>
+          </div>
+          <ul className="space-y-2 text-xs md:text-[13px] text-on-surface-variant/90 leading-relaxed">
+            <li className="flex gap-3">
+              <span className="material-symbols-outlined text-on-surface-variant/40 text-base flex-shrink-0 mt-0.5">height</span>
+              <span><strong className="text-on-surface">Altitude:</strong> 50–100 m AGL for weed-scale detail. Higher altitudes lose flower detail; lower altitudes miss coverage.</span>
+            </li>
+            <li className="flex gap-3">
+              <span className="material-symbols-outlined text-on-surface-variant/40 text-base flex-shrink-0 mt-0.5">photo_camera</span>
+              <span><strong className="text-on-surface">Camera:</strong> nadir (straight down), highest-resolution JPEG, neutral colour profile, auto-exposure.</span>
+            </li>
+            <li className="flex gap-3">
+              <span className="material-symbols-outlined text-on-surface-variant/40 text-base flex-shrink-0 mt-0.5">wb_sunny</span>
+              <span><strong className="text-on-surface">Time of day:</strong> 10 AM – 2 PM for accurate flower colour. Golden-hour shadows shift hues and break the colour masks.</span>
+            </li>
+            <li className="flex gap-3">
+              <span className="material-symbols-outlined text-on-surface-variant/40 text-base flex-shrink-0 mt-0.5">cloud_queue</span>
+              <span><strong className="text-on-surface">Weather:</strong> clear or light overcast. Avoid wind &gt; 25 km/h, rain, or harsh shadows from low cloud.</span>
+            </li>
+            <li className="flex gap-3">
+              <span className="material-symbols-outlined text-on-surface-variant/40 text-base flex-shrink-0 mt-0.5">my_location</span>
+              <span><strong className="text-on-surface">Geotagging:</strong> keep GPS enabled (DJI default). Required for the map view of confirmed detections.</span>
+            </li>
+            <li className="flex gap-3">
+              <span className="material-symbols-outlined text-on-surface-variant/40 text-base flex-shrink-0 mt-0.5">grid_view</span>
+              <span><strong className="text-on-surface">Coverage:</strong> overlap photos ~30% so a single weed isn't split across two frames. Survey the same patch on the same day if possible.</span>
+            </li>
+          </ul>
+        </div>
+
+        <div className="flex flex-col items-center gap-3">
           <button
             onClick={onChoosePhotos}
             className="px-7 md:px-8 py-3 md:py-4 bg-gradient-to-r from-primary to-primary-container text-on-primary-container rounded-full font-black text-base md:text-lg shadow-[0_8px_30px_rgba(221,183,255,0.3)] hover:translate-y-[-2px] active:translate-y-[1px] transition-all"
           >
             {hasFiles ? 'Choose more photos' : 'Choose photos'}
           </button>
-          <p className="text-[11px] uppercase tracking-[0.2em] font-bold text-on-surface-variant/40">
-            JPEG, PNG, TIFF · ≤ 8K resolution
+          <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-on-surface-variant/40">
+            JPEG, PNG, TIFF · ≤ 8K resolution · GPS recommended
           </p>
         </div>
       </div>

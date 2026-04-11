@@ -28,6 +28,8 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 FUNCTION_SOURCE="$SCRIPT_DIR/functions/gemini-proxy"
+RECORDS_FUNCTION_SOURCE="$SCRIPT_DIR/functions/weed-records"
+RECORDS_FUNCTION_NAME="weed-records"
 WEB_DIR="$REPO_ROOT/web"
 
 echo "==> Project : $PROJECT_ID"
@@ -81,6 +83,48 @@ fi
 echo "==> Function URL: $FUNCTION_URL"
 echo
 
+# ─── 1b. Ensure Firestore API + database, then deploy weed-records ─────
+echo "==> Enabling firestore.googleapis.com (no-op if already enabled)..."
+gcloud services enable firestore.googleapis.com --project="$PROJECT_ID" || true
+
+echo "==> Ensuring Firestore (Native mode) database exists in $REGION..."
+if ! gcloud firestore databases describe --database='(default)' --project="$PROJECT_ID" >/dev/null 2>&1; then
+  gcloud firestore databases create \
+    --location="$REGION" \
+    --type=firestore-native \
+    --project="$PROJECT_ID" || {
+      echo "WARNING: firestore database create failed (may already exist or wrong location). Continuing." >&2
+    }
+fi
+
+echo "==> Deploying weed-records Cloud Function from $RECORDS_FUNCTION_SOURCE"
+gcloud functions deploy "$RECORDS_FUNCTION_NAME" \
+  --gen2 \
+  --runtime=python312 \
+  --region="$REGION" \
+  --source="$RECORDS_FUNCTION_SOURCE" \
+  --entry-point=weed_records \
+  --trigger-http \
+  --allow-unauthenticated \
+  --memory=256Mi \
+  --timeout=60s \
+  --project="$PROJECT_ID"
+
+RECORDS_FUNCTION_URL="$(
+  gcloud functions describe "$RECORDS_FUNCTION_NAME" \
+    --gen2 \
+    --region="$REGION" \
+    --project="$PROJECT_ID" \
+    --format='value(serviceConfig.uri)'
+)"
+
+if [ -z "$RECORDS_FUNCTION_URL" ]; then
+  echo "WARNING: failed to retrieve weed-records function URL — frontend will not have records support." >&2
+fi
+
+echo "==> Records URL : $RECORDS_FUNCTION_URL"
+echo
+
 # ─── 2. Build the frontend pointing at the function ────────────────────
 echo "==> Building frontend with VITE_API_BASE_URL=$FUNCTION_URL"
 
@@ -105,6 +149,7 @@ fi
 MSYS_NO_PATHCONV=1 \
 VITE_USE_PROXY=1 \
 VITE_API_BASE_URL="$FUNCTION_URL" \
+VITE_RECORDS_URL="$RECORDS_FUNCTION_URL" \
   npx vite build --base "/$BUCKET/"
 
 # ─── 3. Sync to GCS ────────────────────────────────────────────────────
@@ -127,5 +172,6 @@ echo
 echo "==> Deployed!"
 echo "    Frontend : $PUBLIC_URL"
 echo "    Function : $FUNCTION_URL"
+echo "    Records  : $RECORDS_FUNCTION_URL"
 echo
 echo "    Open the frontend, set the access password in the UI, and start scanning."

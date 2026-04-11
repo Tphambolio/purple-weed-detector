@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import AccessGate from './components/AccessGate'
 import FilePicker from './components/FilePicker'
 import ScanProgress from './components/ScanProgress'
@@ -11,20 +11,21 @@ import {
   recomputePhotoSummary,
 } from './lib/scanner'
 import { clearCache, putResult, recordVerdict, removeVerdict } from './lib/db'
+import { SPECIES } from './lib/species'
+import { getActiveSpecies } from './lib/phenology'
+import { earliestPhotoDate } from './lib/exif'
 import './index.css'
 
 const USE_PROXY = !!import.meta.env.VITE_USE_PROXY
 
-const WEED_OPTIONS = [
-  { value: 'any', label: 'Any purple weed' },
-  { value: 'purple_loosestrife', label: 'Purple Loosestrife' },
-  { value: 'thistle', label: 'Thistle' },
-  { value: 'dames_rocket', label: "Dame's Rocket" },
-]
-
 export default function App() {
   const [files, setFiles] = useState([])
-  const [selectedWeeds, setSelectedWeeds] = useState(['any'])
+  // Default to all 18 species selected; the in-season filter narrows this
+  // automatically when the user drops files (assuming inSeasonOnly is on).
+  const [selectedSpeciesIds, setSelectedSpeciesIds] = useState(() => SPECIES.map(s => s.id))
+  const [photoDate, setPhotoDate] = useState(null)
+  const [photoDateSource, setPhotoDateSource] = useState(null)
+  const [inSeasonOnly, setInSeasonOnly] = useState(true)
   const [scanning, setScanning] = useState(false)
   const [progress, setProgress] = useState(null)
   const [results, setResults] = useState([])
@@ -37,6 +38,50 @@ export default function App() {
     try { localStorage.setItem('fewshot_enabled', v ? '1' : '0') } catch {}
   }
   const cancelRef = useRef(false)
+
+  // When the file selection changes, extract the earliest EXIF date and
+  // (if "in-season only" is on) auto-pre-select species that are in flower
+  // on that date. This is the entry point for the phenology filter — the
+  // single most powerful accuracy lever in the multi-species pipeline.
+  useEffect(() => {
+    if (files.length === 0) {
+      setPhotoDate(null)
+      setPhotoDateSource(null)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      const { date, source } = await earliestPhotoDate(files)
+      if (cancelled) return
+      setPhotoDate(date)
+      setPhotoDateSource(source)
+      if (inSeasonOnly) {
+        const active = getActiveSpecies(date, SPECIES)
+        if (active.length > 0) {
+          setSelectedSpeciesIds(active.map(s => s.id))
+        }
+      }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [files])
+
+  // If the user toggles "in-season only" after files are loaded, re-narrow.
+  useEffect(() => {
+    if (!inSeasonOnly || !photoDate) return
+    const active = getActiveSpecies(photoDate, SPECIES)
+    setSelectedSpeciesIds(active.map(s => s.id))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inSeasonOnly])
+
+  const handlePhotoDateOverride = (date) => {
+    setPhotoDate(date)
+    setPhotoDateSource('override')
+    if (inSeasonOnly) {
+      const active = getActiveSpecies(date, SPECIES)
+      setSelectedSpeciesIds(active.map(s => s.id))
+    }
+  }
 
   const startScan = async () => {
     if (files.length === 0) return
@@ -57,8 +102,9 @@ export default function App() {
 
       let result
       try {
-        result = await scanFile(file, selectedWeeds, {
+        result = await scanFile(file, selectedSpeciesIds, {
           fewShot: fewShotEnabled,
+          photoDate,
           onProgress: ({ stage, blobIndex, totalBlobs }) => {
             const subLabel = stage === 'analyzing'
               ? `${file.name} — blob ${blobIndex + 1}/${totalBlobs}`
@@ -121,7 +167,7 @@ export default function App() {
   const handleVerdict = async (photo, blobIndex, verdict) => {
     const det = photo.detections?.[blobIndex]
     if (!det) return
-    const next = applyVerdictToDetection(det, { ...verdict, targetWeeds: selectedWeeds })
+    const next = applyVerdictToDetection(det, { ...verdict, targetWeeds: selectedSpeciesIds })
     const newDetections = photo.detections.map((d, i) => (i === blobIndex ? next : d))
     const updatedPhoto = recomputePhotoSummary({ ...photo, detections: newDetections })
 
@@ -170,7 +216,9 @@ export default function App() {
     setResults([])
     setProgress(null)
     setSelectedPhoto(null)
-    setSelectedWeeds(['any'])
+    setPhotoDate(null)
+    setPhotoDateSource(null)
+    setSelectedSpeciesIds(SPECIES.map(s => s.id))
     if (clearAnalysisCache) {
       try { await clearCache() } catch {}
     }
@@ -182,8 +230,8 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>Purple Weed Detector</h1>
-        <p>Browser-only blob detection + Gemini Vision. Photos stay on your machine.</p>
+        <h1>Edmonton Weed Detector</h1>
+        <p>Browser-only multi-species blob detection + Gemini Vision. 18 regulated weeds. Photos stay on your machine.</p>
       </header>
 
       <main className="main">
@@ -192,9 +240,13 @@ export default function App() {
         <FilePicker
           files={files}
           setFiles={setFiles}
-          selectedWeeds={selectedWeeds}
-          setSelectedWeeds={setSelectedWeeds}
-          weedOptions={WEED_OPTIONS}
+          selectedSpeciesIds={selectedSpeciesIds}
+          setSelectedSpeciesIds={setSelectedSpeciesIds}
+          photoDate={photoDate}
+          photoDateSource={photoDateSource}
+          onPhotoDateOverride={handlePhotoDateOverride}
+          inSeasonOnly={inSeasonOnly}
+          setInSeasonOnly={setInSeasonOnly}
           onScan={startScan}
           onCancel={cancelScan}
           scanning={scanning}

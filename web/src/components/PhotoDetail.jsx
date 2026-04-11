@@ -1,11 +1,18 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { SPECIES, groupByColorClass } from '../lib/species.js'
+import { COLOR_CLASSES } from '../lib/colorClasses.js'
 
-const SPECIES_PICKER = [
-  { value: 'purple_loosestrife', label: 'Purple Loosestrife' },
-  { value: 'thistle',            label: 'Thistle' },
-  { value: 'dames_rocket',       label: "Dame's Rocket" },
-  { value: 'other',              label: 'Other purple weed' },
-]
+// Build the species picker for "wrong species" verdicts from the registry,
+// grouped by colour class so the user can quickly find the right candidate.
+const VERDICT_PICKER_GROUPS = (() => {
+  const groups = groupByColorClass(SPECIES)
+  return Object.entries(groups).map(([clsId, species]) => ({
+    clsId,
+    label: COLOR_CLASSES[clsId]?.label || clsId,
+    color: COLOR_CLASSES[clsId]?.bbox_color || '#888',
+    species: species.map(s => ({ value: s.id, label: s.label })),
+  }))
+})()
 
 const MIN_ZOOM = 0.05
 const MAX_ZOOM = 40
@@ -120,27 +127,33 @@ export default function PhotoDetail({ photo, onClose, onVerdict, onClearVerdict 
       classes.push('bbox-verified-correct')
     } else if (d.human_verdict === 'not_a_plant' || d.human_verdict === 'wrong_species') {
       classes.push('bbox-verified-wrong')
-    } else if (!d.is_match) {
-      classes.push('bbox-other')
-    } else if (d.confidence === 'high') {
-      classes.push('bbox-high')
-    } else if (d.confidence === 'medium') {
-      classes.push('bbox-medium')
-    } else {
-      classes.push('bbox-low')
     }
     if (d.inherited_from_verdict_id) classes.push('bbox-inherited')
     if (selectedBox === idx) classes.push('bbox-active')
     return classes.join(' ')
   }
-  const boxStyle = (d) => ({
-    left: `${d.x}px`,
-    top: `${d.y}px`,
-    width: `${d.w}px`,
-    height: `${d.h}px`,
-    // Keep the outline ~2px on screen regardless of zoom.
-    borderWidth: `${2 / zoom}px`,
-  })
+  // Default border colour comes from the detection's colour class so the user
+  // can see at a glance which mask flagged each blob. Verdict states (correct/
+  // wrong) override this via the bbox-verified-* CSS classes.
+  const boxStyle = (d) => {
+    const cls = d.color_class && COLOR_CLASSES[d.color_class]
+    const baseColor = cls?.bbox_color || '#94a3b8'
+    // Confidence drives opacity: low-confidence boxes are dimmer.
+    const opacity = d.is_match
+      ? 1
+      : (d.confidence === 'high' ? 0.85 : d.confidence === 'medium' ? 0.65 : 0.45)
+    return {
+      left: `${d.x}px`,
+      top: `${d.y}px`,
+      width: `${d.w}px`,
+      height: `${d.h}px`,
+      borderColor: baseColor,
+      borderStyle: d.is_match ? 'solid' : 'dashed',
+      opacity,
+      // Keep the outline ~2px on screen regardless of zoom.
+      borderWidth: `${2 / zoom}px`,
+    }
+  }
 
   const selectBox = (i) => {
     setSelectedBox(i)
@@ -295,8 +308,23 @@ export default function PhotoDetail({ photo, onClose, onVerdict, onClearVerdict 
             <div className={`detection-badge ${photo.detected ? 'positive' : 'negative'}`}>
               {photo.detected
                 ? `${matches.length} weed${matches.length === 1 ? '' : 's'} detected`
-                : (detections.length > 0 ? `${detections.length} purple blob(s) — none confirmed` : 'Clean')}
+                : (detections.length > 0 ? `${detections.length} candidate blob(s) — none confirmed` : 'Clean')}
             </div>
+
+            {photo.class_counts && Object.keys(photo.class_counts).length > 0 && (
+              <div className="class-breakdown">
+                {Object.entries(photo.class_counts).map(([clsId, count]) => {
+                  const cls = COLOR_CLASSES[clsId]
+                  if (!cls) return null
+                  return (
+                    <span key={clsId} className="class-pill" title={cls.label}>
+                      <span className="color-dot small" style={{ backgroundColor: cls.bbox_color }} />
+                      {count}
+                    </span>
+                  )
+                })}
+              </div>
+            )}
 
             {selectedDet && (
               <div className="verdict-panel">
@@ -337,16 +365,29 @@ export default function PhotoDetail({ photo, onClose, onVerdict, onClearVerdict 
                 {showSpeciesPicker && (
                   <div className="verdict-species-picker">
                     <div className="muted small">Pick the actual species:</div>
-                    <div className="weed-options">
-                      {SPECIES_PICKER.map(opt => (
-                        <button
-                          key={opt.value}
-                          className="weed-btn"
-                          onClick={() => handlePickSpecies(opt.value)}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
+                    {VERDICT_PICKER_GROUPS.map(grp => (
+                      <div key={grp.clsId} className="verdict-picker-group">
+                        <div className="verdict-picker-group-label">
+                          <span className="color-dot small" style={{ backgroundColor: grp.color }} />
+                          {grp.label}
+                        </div>
+                        <div className="weed-options">
+                          {grp.species.map(opt => (
+                            <button
+                              key={opt.value}
+                              className="weed-btn"
+                              onClick={() => handlePickSpecies(opt.value)}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    <div className="verdict-picker-group">
+                      <button className="weed-btn" onClick={() => handlePickSpecies('not_a_plant')}>
+                        Not a plant / other
+                      </button>
                     </div>
                   </div>
                 )}

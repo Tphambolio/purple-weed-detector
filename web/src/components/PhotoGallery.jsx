@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { COLOR_CLASSES } from '../lib/colorClasses.js'
 
 export default function PhotoGallery({ results, selected, onSelect }) {
   const [tab, setTab] = useState('detected')
@@ -47,6 +48,24 @@ export default function PhotoGallery({ results, selected, onSelect }) {
                 onClick={() => onSelect(photo)}
               >
                 <img src={photo.previewUrl} alt={photo.filename} loading="lazy" />
+                {photo.class_counts && Object.keys(photo.class_counts).length > 0 && (
+                  <div className="gallery-class-strip">
+                    {Object.entries(photo.class_counts).map(([clsId, count]) => {
+                      const cls = COLOR_CLASSES[clsId]
+                      if (!cls) return null
+                      return (
+                        <span
+                          key={clsId}
+                          className="gallery-class-dot"
+                          title={`${count} ${cls.label}`}
+                          style={{ backgroundColor: cls.bbox_color }}
+                        >
+                          <span className="gallery-class-count">{count}</span>
+                        </span>
+                      )
+                    })}
+                  </div>
+                )}
                 <div className="gallery-label">
                   <span className="filename">{photo.filename}</span>
                   {photo.detected && (

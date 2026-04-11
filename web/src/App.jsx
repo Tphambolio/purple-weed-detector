@@ -4,6 +4,8 @@ import FilePicker from './components/FilePicker'
 import ScanProgress from './components/ScanProgress'
 import PhotoGallery from './components/PhotoGallery'
 import PhotoDetail from './components/PhotoDetail'
+import SpeciesCalendar from './components/SpeciesCalendar'
+import ScienceTab from './components/ScienceTab'
 import {
   scanFile,
   applyVerdictToDetection,
@@ -19,6 +21,7 @@ import './index.css'
 const USE_PROXY = !!import.meta.env.VITE_USE_PROXY
 
 export default function App() {
+  const [tab, setTab] = useState('scan')   // 'scan' | 'calendar' | 'science'
   const [files, setFiles] = useState([])
   // Default to all 18 species selected; the in-season filter narrows this
   // automatically when the user drops files (assuming inSeasonOnly is on).
@@ -230,41 +233,71 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>Edmonton Weed Detector</h1>
-        <p>Browser-only multi-species blob detection + Gemini Vision. 18 regulated weeds. Photos stay on your machine.</p>
+        <div className="header-top">
+          <div>
+            <h1>Edmonton Weed Detector</h1>
+            <p>Browser-only multi-species blob detection + Gemini Vision. 18 regulated weeds. Photos stay on your machine.</p>
+          </div>
+          <nav className="top-nav">
+            <button
+              className={`top-nav-tab${tab === 'scan' ? ' active' : ''}`}
+              onClick={() => setTab('scan')}
+            >Scan</button>
+            <button
+              className={`top-nav-tab${tab === 'calendar' ? ' active' : ''}`}
+              onClick={() => setTab('calendar')}
+            >Calendar</button>
+            <button
+              className={`top-nav-tab${tab === 'science' ? ' active' : ''}`}
+              onClick={() => setTab('science')}
+            >Science</button>
+          </nav>
+        </div>
       </header>
 
       <main className="main">
-        {USE_PROXY && <AccessGate />}
+        {USE_PROXY && tab === 'scan' && <AccessGate />}
 
-        <FilePicker
-          files={files}
-          setFiles={setFiles}
-          selectedSpeciesIds={selectedSpeciesIds}
-          setSelectedSpeciesIds={setSelectedSpeciesIds}
-          photoDate={photoDate}
-          photoDateSource={photoDateSource}
-          onPhotoDateOverride={handlePhotoDateOverride}
-          inSeasonOnly={inSeasonOnly}
-          setInSeasonOnly={setInSeasonOnly}
-          onScan={startScan}
-          onCancel={cancelScan}
-          scanning={scanning}
-          hasResults={results.length > 0}
-          onReset={resetSession}
-          useProxy={USE_PROXY}
-          fewShotEnabled={fewShotEnabled}
-          setFewShotEnabled={setFewShotEnabled}
-        />
+        {tab === 'scan' && (
+          <>
+            <FilePicker
+              files={files}
+              setFiles={setFiles}
+              selectedSpeciesIds={selectedSpeciesIds}
+              setSelectedSpeciesIds={setSelectedSpeciesIds}
+              photoDate={photoDate}
+              photoDateSource={photoDateSource}
+              onPhotoDateOverride={handlePhotoDateOverride}
+              inSeasonOnly={inSeasonOnly}
+              setInSeasonOnly={setInSeasonOnly}
+              onScan={startScan}
+              onCancel={cancelScan}
+              scanning={scanning}
+              hasResults={results.length > 0}
+              onReset={resetSession}
+              useProxy={USE_PROXY}
+              fewShotEnabled={fewShotEnabled}
+              setFewShotEnabled={setFewShotEnabled}
+            />
 
-        {progress && <ScanProgress progress={progress} />}
+            {progress && <ScanProgress progress={progress} />}
 
-        {results.length > 0 && (
-          <PhotoGallery
-            results={results}
-            selected={selectedPhoto}
-            onSelect={setSelectedPhoto}
-          />
+            {results.length > 0 && (
+              <PhotoGallery
+                results={results}
+                selected={selectedPhoto}
+                onSelect={setSelectedPhoto}
+              />
+            )}
+          </>
+        )}
+
+        {tab === 'calendar' && (
+          <SpeciesCalendar photoDate={photoDate} />
+        )}
+
+        {tab === 'science' && (
+          <ScienceTab />
         )}
       </main>
 

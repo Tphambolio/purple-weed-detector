@@ -1003,3 +1003,301 @@ body {
 .gallery-class-count {
   font-variant-numeric: tabular-nums;
 }
+
+/* ─── Top nav (Phase 6) ───────────────────────────────────────── */
+
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.top-nav {
+  display: flex;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px;
+}
+.top-nav-tab {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.top-nav-tab:hover {
+  color: var(--text);
+}
+.top-nav-tab.active {
+  background: var(--purple);
+  color: white;
+}
+
+/* ─── Bloom calendar (Phase 6) ────────────────────────────────── */
+
+.calendar-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.calendar-intro h2 {
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+.calendar-intro p {
+  margin-bottom: 8px;
+}
+
+.calendar-grid {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.calendar-row {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+  min-height: 38px;
+}
+.calendar-row:hover {
+  background: rgba(168, 85, 247, 0.05);
+}
+.calendar-row.active .calendar-row-label .calendar-species-name {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.calendar-header-row {
+  cursor: default;
+  border-bottom: 2px solid var(--border);
+}
+.calendar-header-row:hover { background: transparent; }
+
+.calendar-row-label {
+  flex: 0 0 200px;
+  padding: 8px 12px 8px 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.calendar-row-label-header {
+  flex-basis: 200px;
+}
+.calendar-species-name {
+  color: var(--text);
+}
+.calendar-species-status em {
+  font-style: normal;
+}
+
+.calendar-bars {
+  position: relative;
+  flex: 1;
+  background: rgba(255,255,255,0.02);
+  border-left: 1px solid var(--border);
+}
+.calendar-bars-header {
+  height: 28px;
+  background: transparent;
+}
+
+.calendar-month-tick {
+  position: absolute;
+  top: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+  transform: translateX(-50%);
+}
+
+.calendar-bar {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 18px;
+  border-radius: 9px;
+  border: 1px solid rgba(0,0,0,0.4);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.calendar-today-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--purple);
+  pointer-events: none;
+  opacity: 0.6;
+}
+.calendar-today-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--purple);
+  pointer-events: none;
+}
+.calendar-today-marker-header::after {
+  content: '↓';
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--purple);
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.calendar-class-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px dashed var(--border);
+}
+.calendar-class-divider strong {
+  font-size: 11px;
+}
+
+.calendar-footnote {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-style: italic;
+}
+
+/* ─── Science tab (Phase 6) ──────────────────────────────────── */
+
+.science-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 32px;
+  max-width: 900px;
+  line-height: 1.7;
+}
+.science-header h2 {
+  font-size: 22px;
+  margin-bottom: 8px;
+  color: var(--purple);
+}
+.science-header p {
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+.science-section {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+.science-section h3 {
+  font-size: 16px;
+  margin-bottom: 12px;
+  color: var(--text);
+}
+.science-section p {
+  margin-bottom: 12px;
+  color: var(--text-muted);
+}
+.science-section ul,
+.science-section ol {
+  margin-left: 20px;
+  margin-bottom: 12px;
+  color: var(--text-muted);
+}
+.science-section ul li,
+.science-section ol li {
+  margin-bottom: 8px;
+}
+.science-section strong {
+  color: var(--text);
+}
+.science-section code {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+  font-size: 12px;
+  color: var(--purple);
+}
+
+.numbered-list {
+  list-style: decimal;
+}
+
+.science-pre {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px 18px;
+  font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+  font-size: 11px;
+  color: var(--text);
+  overflow-x: auto;
+  margin: 12px 0;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.science-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 12px;
+}
+.science-table th,
+.science-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+.science-table th {
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+}
+.science-table tbody td:first-child {
+  white-space: nowrap;
+}
+
+.science-sub-list {
+  margin-top: 6px;
+  margin-left: 16px;
+  list-style: disc;
+}
+
+.science-footer {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+.science-footer a {
+  color: var(--purple);
+  text-decoration: underline;
+}
+.science-footer a:hover {
+  color: var(--text);
+}

@@ -4,7 +4,13 @@ import FilePicker from './components/FilePicker'
 import ScanProgress from './components/ScanProgress'
 import PhotoGallery from './components/PhotoGallery'
 import PhotoDetail from './components/PhotoDetail'
-import { scanFile } from './lib/scanner'
+import {
+  scanFile,
+  applyVerdictToDetection,
+  clearVerdictFromDetection,
+  recomputePhotoSummary,
+} from './lib/scanner'
+import { clearCache, putResult, recordVerdict, removeVerdict } from './lib/db'
 import './index.css'
 
 const USE_PROXY = !!import.meta.env.VITE_USE_PROXY
@@ -23,6 +29,13 @@ export default function App() {
   const [progress, setProgress] = useState(null)
   const [results, setResults] = useState([])
   const [selectedPhoto, setSelectedPhoto] = useState(null)
+  const [fewShotEnabled, setFewShotEnabledState] = useState(
+    () => localStorage.getItem('fewshot_enabled') === '1'
+  )
+  const setFewShotEnabled = (v) => {
+    setFewShotEnabledState(v)
+    try { localStorage.setItem('fewshot_enabled', v ? '1' : '0') } catch {}
+  }
   const cancelRef = useRef(false)
 
   const startScan = async () => {
@@ -45,6 +58,7 @@ export default function App() {
       let result
       try {
         result = await scanFile(file, selectedWeeds, {
+          fewShot: fewShotEnabled,
           onProgress: ({ stage, blobIndex, totalBlobs }) => {
             const subLabel = stage === 'analyzing'
               ? `${file.name} — blob ${blobIndex + 1}/${totalBlobs}`
@@ -86,6 +100,85 @@ export default function App() {
     cancelRef.current = true
   }
 
+  // ─── HITL verdict handlers ────────────────────────────
+  const persistVerdict = async (photo, blobIndex, verdictRow) => {
+    try {
+      await recordVerdict({
+        photo_hash: photo.hash,
+        blob_index: blobIndex,
+        ai_verdict: verdictRow.ai_verdict,
+        human_verdict: verdictRow.human_verdict,
+        human_species: verdictRow.human_species ?? null,
+        phash: verdictRow.phash ?? null,
+        thumb_b64: verdictRow.thumb_b64 ?? null,
+        blob_geom: verdictRow.blob_geom ?? null,
+      })
+    } catch (e) {
+      console.error('recordVerdict failed', e)
+    }
+  }
+
+  const handleVerdict = async (photo, blobIndex, verdict) => {
+    const det = photo.detections?.[blobIndex]
+    if (!det) return
+    const next = applyVerdictToDetection(det, { ...verdict, targetWeeds: selectedWeeds })
+    const newDetections = photo.detections.map((d, i) => (i === blobIndex ? next : d))
+    const updatedPhoto = recomputePhotoSummary({ ...photo, detections: newDetections })
+
+    setResults(prev => prev.map(r => (r.hash === photo.hash ? updatedPhoto : r)))
+    setSelectedPhoto(updatedPhoto)
+
+    try { await putResult(updatedPhoto) } catch (e) { console.error(e) }
+
+    await persistVerdict(updatedPhoto, blobIndex, {
+      ai_verdict: det.ai_snapshot ?? {
+        species: det.species,
+        confidence: det.confidence,
+        description: det.description,
+        is_plant: det.is_match,
+      },
+      human_verdict: verdict.human_verdict,
+      human_species: verdict.human_species,
+      phash: det.phash,
+      thumb_b64: det.thumb_b64,
+      blob_geom: { x: det.x, y: det.y, w: det.w, h: det.h, cx: det.cx, cy: det.cy, area_px: det.area_px },
+    })
+  }
+
+  const handleClearVerdict = async (photo, blobIndex) => {
+    const det = photo.detections?.[blobIndex]
+    if (!det) return
+    const next = clearVerdictFromDetection(det)
+    const newDetections = photo.detections.map((d, i) => (i === blobIndex ? next : d))
+    const updatedPhoto = recomputePhotoSummary({ ...photo, detections: newDetections })
+
+    setResults(prev => prev.map(r => (r.hash === photo.hash ? updatedPhoto : r)))
+    setSelectedPhoto(updatedPhoto)
+
+    try { await putResult(updatedPhoto) } catch (e) { console.error(e) }
+    try { await removeVerdict(photo.hash, blobIndex) } catch (e) { console.error(e) }
+  }
+
+  const resetSession = async ({ clearAnalysisCache = false, clearPassword = false } = {}) => {
+    // Revoke transient blob URLs so we don't leak memory.
+    for (const r of results) {
+      if (r.previewUrl) {
+        try { URL.revokeObjectURL(r.previewUrl) } catch {}
+      }
+    }
+    setFiles([])
+    setResults([])
+    setProgress(null)
+    setSelectedPhoto(null)
+    setSelectedWeeds(['any'])
+    if (clearAnalysisCache) {
+      try { await clearCache() } catch {}
+    }
+    if (clearPassword) {
+      try { localStorage.removeItem('access_password') } catch {}
+    }
+  }
+
   return (
     <div className="app">
       <header className="header">
@@ -105,6 +198,11 @@ export default function App() {
           onScan={startScan}
           onCancel={cancelScan}
           scanning={scanning}
+          hasResults={results.length > 0}
+          onReset={resetSession}
+          useProxy={USE_PROXY}
+          fewShotEnabled={fewShotEnabled}
+          setFewShotEnabled={setFewShotEnabled}
         />
 
         {progress && <ScanProgress progress={progress} />}
@@ -119,7 +217,12 @@ export default function App() {
       </main>
 
       {selectedPhoto && (
-        <PhotoDetail photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} />
+        <PhotoDetail
+          photo={selectedPhoto}
+          onClose={() => setSelectedPhoto(null)}
+          onVerdict={handleVerdict}
+          onClearVerdict={handleClearVerdict}
+        />
       )}
     </div>
   )

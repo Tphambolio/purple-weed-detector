@@ -41,19 +41,28 @@ export async function onRequestPost({ request, env }) {
     return new Response('Invalid JSON body', { status: 400, headers: cors() })
   }
 
-  const { image_b64, prompt } = body || {}
+  const { image_b64, prompt, examples } = body || {}
   if (!image_b64 || !prompt) {
     return new Response('Missing image_b64 or prompt', { status: 400, headers: cors() })
   }
 
+  const parts = []
+  if (Array.isArray(examples)) {
+    examples.slice(0, 6).forEach((ex, i) => {
+      if (!ex || !ex.b64) return
+      parts.push({ text: `Example ${i + 1} — ${ex.label || 'reference'}:` })
+      parts.push({ inline_data: { mime_type: 'image/jpeg', data: ex.b64 } })
+    })
+    if (parts.length > 0) {
+      parts.push({ text: 'Now classify this crop using the examples above as calibration:' })
+    }
+  }
+  parts.push({ inline_data: { mime_type: 'image/jpeg', data: image_b64 } })
+  parts.push({ text: prompt })
+
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${env.GEMINI_API_KEY}`
   const geminiBody = {
-    contents: [{
-      parts: [
-        { inline_data: { mime_type: 'image/jpeg', data: image_b64 } },
-        { text: prompt },
-      ],
-    }],
+    contents: [{ parts }],
     generationConfig: {
       responseMimeType: 'application/json',
       maxOutputTokens: 512,

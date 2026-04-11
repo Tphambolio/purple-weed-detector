@@ -598,3 +598,164 @@ body {
   outline: none;
   border-color: var(--purple);
 }
+
+/* Reset / Start Over confirm panel */
+.scan-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.reset-confirm {
+  flex: 1 1 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reset-confirm-title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.reset-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.reset-checkbox em {
+  color: var(--text-muted);
+  font-style: normal;
+  opacity: 0.7;
+}
+.reset-checkbox input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.reset-note {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.reset-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* HITL verdict bbox states */
+.bbox-active {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+  z-index: 10;
+}
+.bbox-verified-correct {
+  border: 3px solid #22c55e !important;
+  box-shadow: 0 0 0 1px rgba(34,197,94,0.5);
+}
+.bbox-verified-wrong {
+  border: 3px dashed #ef4444 !important;
+  box-shadow: 0 0 0 1px rgba(239,68,68,0.5);
+}
+.bbox-inherited::after {
+  content: '★';
+  position: absolute;
+  top: -10px;
+  right: -2px;
+  color: #fbbf24;
+  font-size: 14px;
+  text-shadow: 0 0 3px #000;
+}
+
+/* Verdict panel inside detail-info */
+.verdict-panel {
+  background: var(--bg);
+  border: 1px solid var(--purple);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-top: 14px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.verdict-panel h3 {
+  margin: 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--purple);
+}
+.verdict-ai-readout {
+  font-size: 12px;
+  color: var(--text);
+}
+.verdict-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.verdict-species-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.verdict-species-picker .weed-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.verdict-shortcuts {
+  margin-top: 4px;
+}
+.verdict-tag {
+  margin-left: 6px;
+  font-size: 10px;
+  color: var(--purple);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--purple);
+  text-decoration: underline;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+  align-self: flex-start;
+}
+.link-btn:hover { opacity: 0.8; }
+
+.fewshot-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  margin-bottom: 0;
+  font-size: 12px;
+  font-weight: normal;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.fewshot-toggle em {
+  font-style: normal;
+  opacity: 0.75;
+}
+.fewshot-toggle input { cursor: pointer; margin: 0; }

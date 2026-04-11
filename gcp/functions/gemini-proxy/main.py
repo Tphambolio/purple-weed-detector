@@ -120,15 +120,30 @@ def gemini_proxy(request):
     if not image_b64 or not prompt:
         return ("Missing image_b64 or prompt", 400, _cors_headers())
 
+    # Few-shot examples (Feature 3B): optional list of {b64, label}.
+    # Cap at 6 to keep prompt size sane. Backwards compatible — if absent,
+    # behavior is identical to v1.
+    examples = body.get("examples") or []
+    if not isinstance(examples, list):
+        examples = []
+
+    parts = []
+    for i, ex in enumerate(examples[:6]):
+        if not isinstance(ex, dict):
+            continue
+        ex_b64 = ex.get("b64")
+        ex_label = ex.get("label") or "reference"
+        if not ex_b64:
+            continue
+        parts.append({"text": f"Example {i + 1} — {ex_label}:"})
+        parts.append({"inline_data": {"mime_type": "image/jpeg", "data": ex_b64}})
+    if parts:
+        parts.append({"text": "Now classify this crop using the examples above as calibration:"})
+    parts.append({"inline_data": {"mime_type": "image/jpeg", "data": image_b64}})
+    parts.append({"text": prompt})
+
     gemini_body = {
-        "contents": [
-            {
-                "parts": [
-                    {"inline_data": {"mime_type": "image/jpeg", "data": image_b64}},
-                    {"text": prompt},
-                ],
-            },
-        ],
+        "contents": [{"parts": parts}],
         "generationConfig": {
             "responseMimeType": "application/json",
             "maxOutputTokens": 512,

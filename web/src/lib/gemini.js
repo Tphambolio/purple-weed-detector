@@ -70,7 +70,26 @@ function parseJsonLoose(text) {
   try { return JSON.parse(s) } catch { return null }
 }
 
-async function callDirect(jpegBlob, prompt) {
+/**
+ * Build the multi-part `parts` array for a Gemini request.
+ * If `examples` is non-empty, prepends them as alternating text+image pairs
+ * so the model gets in-context calibration before classifying the new crop.
+ */
+function buildGeminiParts(newCropB64, prompt, examples = []) {
+  const parts = []
+  examples.forEach((ex, i) => {
+    parts.push({ text: `Example ${i + 1} — ${ex.label}:` })
+    parts.push({ inline_data: { mime_type: 'image/jpeg', data: ex.thumb_b64 } })
+  })
+  if (examples.length > 0) {
+    parts.push({ text: 'Now classify this crop using the examples above as calibration:' })
+  }
+  parts.push({ inline_data: { mime_type: 'image/jpeg', data: newCropB64 } })
+  parts.push({ text: prompt })
+  return parts
+}
+
+async function callDirect(jpegBlob, prompt, examples) {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY
   if (!apiKey) throw new Error('VITE_GEMINI_API_KEY not set (Phase 1 local dev only)')
 
@@ -78,10 +97,7 @@ async function callDirect(jpegBlob, prompt) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`
   const body = {
     contents: [{
-      parts: [
-        { inline_data: { mime_type: 'image/jpeg', data: b64 } },
-        { text: prompt },
-      ],
+      parts: buildGeminiParts(b64, prompt, examples),
     }],
     generationConfig: {
       responseMimeType: 'application/json',
@@ -104,16 +120,21 @@ async function callDirect(jpegBlob, prompt) {
   return text
 }
 
-async function callProxy(jpegBlob, prompt) {
+async function callProxy(jpegBlob, prompt, examples) {
   const password = localStorage.getItem('access_password') || ''
   const b64 = await blobToBase64(jpegBlob)
+  const body = { image_b64: b64, prompt }
+  if (examples && examples.length > 0) {
+    // Compact field names — proxy expects {b64, label}
+    body.examples = examples.map(e => ({ b64: e.thumb_b64, label: e.label }))
+  }
   const res = await fetch(PROXY_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'X-Access-Password': password,
     },
-    body: JSON.stringify({ image_b64: b64, prompt }),
+    body: JSON.stringify(body),
   })
   if (!res.ok) {
     const t = await res.text()
@@ -127,9 +148,15 @@ async function callProxy(jpegBlob, prompt) {
 // Phase 1 just uses the direct path.
 const USE_PROXY = !!import.meta.env.VITE_USE_PROXY
 
-export async function analyzeCrop(jpegBlob, weeds) {
+/**
+ * Public entry point. `examples` is optional — if present, each will be
+ * sent to Gemini as an in-context example before the new crop is classified.
+ */
+export async function analyzeCrop(jpegBlob, weeds, { examples = [] } = {}) {
   const prompt = buildCropPrompt(weeds)
-  const raw = USE_PROXY ? await callProxy(jpegBlob, prompt) : await callDirect(jpegBlob, prompt)
+  const raw = USE_PROXY
+    ? await callProxy(jpegBlob, prompt, examples)
+    : await callDirect(jpegBlob, prompt, examples)
   const parsed = parseJsonLoose(raw)
   if (parsed) return parsed
   return {

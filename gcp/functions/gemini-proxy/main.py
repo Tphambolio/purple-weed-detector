@@ -103,13 +103,11 @@ def gemini_proxy(request):
             _cors_headers(),
         )
 
-    access_password = os.environ.get("ACCESS_PASSWORD")
-    if not access_password:
-        return ("ACCESS_PASSWORD not configured", 500, _cors_headers())
-
-    supplied = request.headers.get("X-Access-Password", "") or ""
-    if supplied != access_password:
-        return ("Unauthorized", 401, _cors_headers())
+    # NOTE: access-password gate intentionally removed at user request so the
+    # tool is openly accessible for the City of Edmonton field team. The proxy
+    # is rate-limited only by Gemini quotas — if abuse becomes an issue,
+    # re-enable the X-Access-Password check by reading ACCESS_PASSWORD from
+    # the function env and comparing.
 
     body = request.get_json(silent=True)
     if body is None:

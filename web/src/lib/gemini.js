@@ -151,6 +151,9 @@ async function callDirect(jpegBlob, prompt, examples) {
 }
 
 async function callProxy(jpegBlob, prompt, examples) {
+  // The Cloud Function no longer requires an access password (open access at
+  // user request). We still send the header if one happens to be in
+  // localStorage from a previous session — harmless if the proxy ignores it.
   const password = localStorage.getItem('access_password') || ''
   const b64 = await blobToBase64(jpegBlob)
   const body = { image_b64: b64, prompt }
@@ -158,12 +161,11 @@ async function callProxy(jpegBlob, prompt, examples) {
     // Compact field names — proxy expects {b64, label}
     body.examples = examples.map(e => ({ b64: e.thumb_b64, label: e.label }))
   }
+  const headers = { 'Content-Type': 'application/json' }
+  if (password) headers['X-Access-Password'] = password
   const res = await fetch(PROXY_URL, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Access-Password': password,
-    },
+    headers,
     body: JSON.stringify(body),
   })
   if (!res.ok) {

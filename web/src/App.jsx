@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import AccessGate from './components/AccessGate'
 import FilePicker from './components/FilePicker'
 import ScanProgress from './components/ScanProgress'
 import PhotoGallery from './components/PhotoGallery'
@@ -256,8 +255,6 @@ export default function App() {
       </header>
 
       <main className="main">
-        {USE_PROXY && tab === 'scan' && <AccessGate />}
-
         {tab === 'scan' && (
           <>
             <FilePicker

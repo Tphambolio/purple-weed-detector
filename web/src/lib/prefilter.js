@@ -59,12 +59,18 @@ export async function fileToImage(file) {
 }
 
 /**
- * Find purple blobs in a File. Decodes via createImageBitmap, transfers
- * to the worker (zero-copy), and returns native-pixel blob coords.
+ * Find coloured blobs in a File matching the given colour class definitions.
+ * Decodes via createImageBitmap, transfers to the worker (zero-copy), and
+ * returns native-pixel blob coords. Each blob carries `color_class` so the
+ * caller can route it to the right Gemini prompt context.
+ *
+ * `classes` is an array of objects shaped like the entries in
+ * web/src/lib/colorClasses.js, with the additional `id` field set so the
+ * worker can tag results.
  */
-export async function findPurpleBlobs(file) {
+export async function findColoredBlobs(file, classes) {
   const bitmap = await createImageBitmap(file)
-  return await send('findBlobs', { imageBitmap: bitmap }, [bitmap])
+  return await send('findBlobs', { imageBitmap: bitmap, classes }, [bitmap])
 }
 
 /**

@@ -1,16 +1,19 @@
 // Scanner orchestration. For each file:
 //   1. hash → cache lookup
-//   2. opencv.js findPurpleBlobs
+//   2. opencv.js findColoredBlobs across the colour classes spanned by the
+//      currently selected target species
 //   3. for each blob: cropBlobToJpegBlob → analyzeCrop → Detection
 //   4. assemble PhotoResult, persist to IndexedDB, yield to caller
 
-import { findPurpleBlobs, cropBlobToJpegBlob, fileToImage } from './prefilter.js'
+import { findColoredBlobs, cropBlobToJpegBlob, fileToImage } from './prefilter.js'
 import { analyzeCrop } from './gemini.js'
 import {
   getCached, hashFile, putResult,
   findNearestVerdictByPhash, pickFewShotExamples,
 } from './db.js'
 import { computeDhash, blobToThumbnailB64 } from './phash.js'
+import { SPECIES, getSpeciesById } from './species.js'
+import { COLOR_CLASSES } from './colorClasses.js'
 
 
 // ───────────────────────── HITL verdict helpers (pure) ─────────────────────────
@@ -93,20 +96,72 @@ export function recomputePhotoSummary(photo) {
   const detections = photo.detections || []
   const matches = detections.filter(d => d.is_match)
   const firstMatch = matches[0] || null
+  // Refresh per-class counts in case verdicts shifted what counts as a match.
+  const class_counts = {}
+  for (const d of detections) {
+    if (!d.color_class) continue
+    class_counts[d.color_class] = (class_counts[d.color_class] || 0) + 1
+  }
   return {
     ...photo,
     detected: matches.length > 0,
     species: firstMatch?.species ?? null,
     confidence: firstMatch?.confidence ?? null,
+    class_counts,
     description: firstMatch?.description
       ?? (detections.length > 0
-        ? `${detections.length} purple blob(s); none confirmed as target weed`
+        ? `${detections.length} candidate blob(s) across ${Object.keys(class_counts).length} colour class(es); none confirmed`
         : photo.description),
   }
 }
 
 
 // ───────────────────────── scan pipeline ─────────────────────────
+
+/**
+ * Resolve a `weeds` selection (legacy strings or species ids) into a list of
+ * actual species objects from the registry.
+ *
+ * Accepted shapes:
+ *   ['any']                              → all 18 registry species
+ *   ['purple_loosestrife', 'thistle']    → legacy alias map (back-compat)
+ *   ['canada_thistle', 'leafy_spurge']   → modern species ids
+ */
+function resolveTargetSpecies(weeds) {
+  if (!Array.isArray(weeds) || weeds.length === 0 || weeds.includes('any')) {
+    return SPECIES
+  }
+  // Legacy alias map for the original 4-option picker — keeps existing
+  // sessions / cached results from breaking when this code lands.
+  const LEGACY = {
+    purple_loosestrife: 'purple_loosestrife',
+    thistle: 'canada_thistle',
+    dames_rocket: 'dames_rocket',
+  }
+  const ids = new Set(weeds.map(w => LEGACY[w] || w))
+  const resolved = SPECIES.filter(s => ids.has(s.id))
+  // Defensive fallback: if the caller passed something we don't recognize,
+  // scan everything rather than scanning nothing.
+  return resolved.length > 0 ? resolved : SPECIES
+}
+
+/**
+ * Build the array of colour-class definitions to send to the worker, given
+ * a list of target species. Dedupes by class id and injects the id into
+ * each class object so the worker can tag blobs.
+ */
+function buildClassPayload(targetSpecies) {
+  const seen = new Set()
+  const out = []
+  for (const sp of targetSpecies) {
+    if (!sp.color_class || seen.has(sp.color_class)) continue
+    const def = COLOR_CLASSES[sp.color_class]
+    if (!def) continue
+    seen.add(sp.color_class)
+    out.push({ id: sp.color_class, ...def })
+  }
+  return out
+}
 
 /**
  * Scan a single file. Calls onProgress({ stage, blobIndex, totalBlobs }) at
@@ -117,6 +172,7 @@ export async function scanFile(file, weeds, {
   forceRescan = false,
   onProgress = () => {},
   fewShot = false,
+  photoDate = null,
 } = {}) {
   onProgress({ stage: 'hashing' })
   const hash = await hashFile(file)
@@ -130,9 +186,15 @@ export async function scanFile(file, weeds, {
     }
   }
 
+  // Derive colour classes from the selected species. The resulting array
+  // drives both the CV worker masks AND the Gemini prompt context — Phase 3
+  // adds species-aware prompts.
+  const targetSpecies = resolveTargetSpecies(weeds)
+  const classPayload = buildClassPayload(targetSpecies)
+
   onProgress({ stage: 'prefilter' })
   // Worker decodes the file via createImageBitmap and runs CV off-thread.
-  const { width, height, blobs } = await findPurpleBlobs(file)
+  const { width, height, blobs } = await findColoredBlobs(file, classPayload)
 
   // Decode an HTMLImageElement on the main thread for the per-blob crop step.
   onProgress({ stage: 'decoding' })
@@ -160,6 +222,8 @@ export async function scanFile(file, weeds, {
       description: null,
       detections: [],
       previewUrl,
+      photo_date: photoDate ? new Date(photoDate).toISOString() : null,
+      target_species: targetSpecies.map(s => s.id),
     }
     await putResult(result)
     return result
@@ -173,6 +237,7 @@ export async function scanFile(file, weeds, {
     const det = {
       x: blob.x, y: blob.y, w: blob.w, h: blob.h,
       cx: blob.cx, cy: blob.cy, area_px: blob.area,
+      color_class: blob.color_class || null,
       species: null, confidence: 'low', description: null, is_match: false,
     }
     try {
@@ -206,9 +271,14 @@ export async function scanFile(file, weeds, {
         }
         det.inherited_from_verdict_id = v.id
       } else {
-        // 3B: include few-shot examples (if enabled and any exist).
-        const analysis = await analyzeCrop(jpeg, weeds, { examples })
+        const analysis = await analyzeCrop(jpeg, weeds, {
+          examples,
+          targetSpecies,
+          photoDate,
+          colorClass: blob.color_class,
+        })
         det.species = analysis.species ?? null
+        det.species_id = analysis.species_id ?? null
         det.confidence = analysis.confidence ?? 'low'
         det.description = analysis.description ?? null
         det.is_match = !!analysis.is_plant
@@ -221,6 +291,13 @@ export async function scanFile(file, weeds, {
     if (det.is_match && !firstMatch) firstMatch = det
   }
 
+  // Per-class summary so the gallery can show "12 purple · 4 yellow · 0 white"
+  const class_counts = {}
+  for (const d of detections) {
+    if (!d.color_class) continue
+    class_counts[d.color_class] = (class_counts[d.color_class] || 0) + 1
+  }
+
   const result = {
     hash,
     filename: file.name,
@@ -231,9 +308,12 @@ export async function scanFile(file, weeds, {
     species: firstMatch?.species ?? null,
     confidence: firstMatch?.confidence ?? null,
     description: firstMatch?.description
-      ?? `${detections.length} purple blob(s); none confirmed as target weed`,
+      ?? `${detections.length} candidate blob(s) across ${Object.keys(class_counts).length} colour class(es); none confirmed as target weed`,
     detections,
+    class_counts,
     previewUrl,
+    photo_date: photoDate ? new Date(photoDate).toISOString() : null,
+    target_species: targetSpecies.map(s => s.id),
   }
   await putResult(result)
   return result

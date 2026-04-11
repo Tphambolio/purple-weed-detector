@@ -37,6 +37,15 @@ export default function App() {
     try { localStorage.setItem('fewshot_enabled', v ? '1' : '0') } catch {}
   }
   const cancelRef = useRef(false)
+  // App-level file input — shared by the FilePicker sidebar button AND the
+  // EmptyState centred CTA so a single click opens the OS file chooser
+  // regardless of which entry point the user used.
+  const fileInputRef = useRef(null)
+  const openFileChooser = () => fileInputRef.current?.click()
+  const onFileInputChange = (e) => {
+    const list = Array.from(e.target.files || []).filter(f => /^image\//.test(f.type))
+    setFiles(list)
+  }
 
   // EXIF date extraction on file change drives the phenology auto-filter.
   useEffect(() => {
@@ -217,6 +226,16 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-background text-on-surface flex flex-col">
+      {/* App-level hidden file input (shared by EmptyState + FilePicker buttons) */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={onFileInputChange}
+      />
+
       {/* ── Top nav (frosted glass, sticky) ──────────────────────────── */}
       <nav className="fixed top-0 left-0 right-0 z-40 h-[56px] flex justify-between items-center px-4 md:px-6 bg-surface-container-low/85 backdrop-blur-xl">
         <div className="flex items-center gap-3 min-w-0">
@@ -259,6 +278,7 @@ export default function App() {
             <FilePicker
               files={files}
               setFiles={setFiles}
+              openFileChooser={openFileChooser}
               selectedSpeciesIds={selectedSpeciesIds}
               setSelectedSpeciesIds={setSelectedSpeciesIds}
               photoDate={photoDate}
@@ -294,7 +314,7 @@ export default function App() {
               progress={progress}
               selectedPhoto={selectedPhoto}
               onSelect={setSelectedPhoto}
-              onOpenSidebar={() => setSidebarOpen(true)}
+              onChoosePhotos={() => { openFileChooser(); setSidebarOpen(true) }}
               hasFiles={files.length > 0}
             />
           )}
@@ -332,9 +352,9 @@ export default function App() {
 }
 
 // ─── Scan workspace: empty state OR progress OR gallery ───────────────
-function ScanWorkspace({ results, scanning, progress, selectedPhoto, onSelect, onOpenSidebar, hasFiles }) {
+function ScanWorkspace({ results, scanning, progress, selectedPhoto, onSelect, onChoosePhotos, hasFiles }) {
   if (results.length === 0 && !scanning) {
-    return <EmptyState onOpenSidebar={onOpenSidebar} hasFiles={hasFiles} />
+    return <EmptyState onChoosePhotos={onChoosePhotos} hasFiles={hasFiles} />
   }
   return (
     <div className="p-4 md:p-6 lg:p-8">
@@ -346,7 +366,7 @@ function ScanWorkspace({ results, scanning, progress, selectedPhoto, onSelect, o
   )
 }
 
-function EmptyState({ onOpenSidebar, hasFiles }) {
+function EmptyState({ onChoosePhotos, hasFiles }) {
   return (
     <div className="relative h-full min-h-[calc(100vh-56px-44px)] md:min-h-[calc(100vh-56px)] flex items-center justify-center p-6 md:p-8">
       {/* Subtle background dot pattern */}
@@ -376,10 +396,10 @@ function EmptyState({ onOpenSidebar, hasFiles }) {
         </div>
         <div className="flex flex-col items-center gap-4">
           <button
-            onClick={onOpenSidebar}
+            onClick={onChoosePhotos}
             className="px-7 md:px-8 py-3 md:py-4 bg-gradient-to-r from-primary to-primary-container text-on-primary-container rounded-full font-black text-base md:text-lg shadow-[0_8px_30px_rgba(221,183,255,0.3)] hover:translate-y-[-2px] active:translate-y-[1px] transition-all"
           >
-            {hasFiles ? 'Configure scan' : 'Choose photos'}
+            {hasFiles ? 'Choose more photos' : 'Choose photos'}
           </button>
           <p className="text-[11px] uppercase tracking-[0.2em] font-bold text-on-surface-variant/40">
             JPEG, PNG, TIFF · ≤ 8K resolution

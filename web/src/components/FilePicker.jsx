@@ -6,6 +6,7 @@ import { formatDateSource } from '../lib/exif.js'
 
 export default function FilePicker({
   files, setFiles,
+  openFileChooser,
   selectedSpeciesIds, setSelectedSpeciesIds,
   photoDate, photoDateSource, onPhotoDateOverride,
   inSeasonOnly, setInSeasonOnly,
@@ -13,7 +14,6 @@ export default function FilePicker({
   hasResults, onReset,
   fewShotEnabled, setFewShotEnabled,
 }) {
-  const inputRef = useRef(null)
   const dateInputRef = useRef(null)
   const [resetConfirm, setResetConfirm] = useState(false)
   const [resetClearCache, setResetClearCache] = useState(false)
@@ -21,11 +21,6 @@ export default function FilePicker({
   const groups = useMemo(() => groupByColorClass(SPECIES), [])
   const selectedSet = useMemo(() => new Set(selectedSpeciesIds), [selectedSpeciesIds])
   const dateForBloomCheck = photoDate || new Date()
-
-  const onChange = (e) => {
-    const list = Array.from(e.target.files || []).filter(f => /^image\//.test(f.type))
-    setFiles(list)
-  }
 
   const toggleSpecies = (id) => {
     setSelectedSpeciesIds(prev => {
@@ -46,7 +41,6 @@ export default function FilePicker({
   const confirmReset = async () => {
     await onReset?.({ clearAnalysisCache: resetClearCache })
     cancelReset()
-    if (inputRef.current) inputRef.current.value = ''
   }
 
   const handleDateOverride = (e) => {
@@ -65,21 +59,13 @@ export default function FilePicker({
         <h3 className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant/60">Source Data</h3>
         <div className="p-4 rounded-xl bg-surface-container-lowest space-y-3">
           <button
-            onClick={() => inputRef.current?.click()}
+            onClick={openFileChooser}
             disabled={scanning}
             className="w-full flex items-center justify-center gap-2 bg-gradient-to-br from-primary to-primary-container text-on-primary-container py-2.5 rounded-lg font-bold text-sm shadow-lg hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="material-symbols-outlined text-lg">add_photo_alternate</span>
             Choose photos
           </button>
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={onChange}
-          />
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tighter ${
               files.length > 0

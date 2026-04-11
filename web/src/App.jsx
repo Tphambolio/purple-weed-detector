@@ -17,13 +17,10 @@ import { getActiveSpecies } from './lib/phenology'
 import { earliestPhotoDate } from './lib/exif'
 import './index.css'
 
-const USE_PROXY = !!import.meta.env.VITE_USE_PROXY
-
 export default function App() {
-  const [tab, setTab] = useState('scan')   // 'scan' | 'calendar' | 'science'
+  const [tab, setTab] = useState('scan')
+  const [sidebarOpen, setSidebarOpen] = useState(true) // mobile drawer state
   const [files, setFiles] = useState([])
-  // Default to all 18 species selected; the in-season filter narrows this
-  // automatically when the user drops files (assuming inSeasonOnly is on).
   const [selectedSpeciesIds, setSelectedSpeciesIds] = useState(() => SPECIES.map(s => s.id))
   const [photoDate, setPhotoDate] = useState(null)
   const [photoDateSource, setPhotoDateSource] = useState(null)
@@ -41,10 +38,7 @@ export default function App() {
   }
   const cancelRef = useRef(false)
 
-  // When the file selection changes, extract the earliest EXIF date and
-  // (if "in-season only" is on) auto-pre-select species that are in flower
-  // on that date. This is the entry point for the phenology filter — the
-  // single most powerful accuracy lever in the multi-species pipeline.
+  // EXIF date extraction on file change drives the phenology auto-filter.
   useEffect(() => {
     if (files.length === 0) {
       setPhotoDate(null)
@@ -59,16 +53,13 @@ export default function App() {
       setPhotoDateSource(source)
       if (inSeasonOnly) {
         const active = getActiveSpecies(date, SPECIES)
-        if (active.length > 0) {
-          setSelectedSpeciesIds(active.map(s => s.id))
-        }
+        if (active.length > 0) setSelectedSpeciesIds(active.map(s => s.id))
       }
     })()
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [files])
 
-  // If the user toggles "in-season only" after files are loaded, re-narrow.
   useEffect(() => {
     if (!inSeasonOnly || !photoDate) return
     const active = getActiveSpecies(photoDate, SPECIES)
@@ -94,12 +85,10 @@ export default function App() {
     let processed = 0
     let detected = 0
     const total = files.length
-
     setProgress({ status: 'scanning', total, processed: 0, detected: 0 })
 
     for (const file of files) {
       if (cancelRef.current) break
-
       setProgress(p => ({ ...p, current_file: file.name }))
 
       let result
@@ -136,7 +125,6 @@ export default function App() {
         processed, detected,
         current_file: file.name,
       })
-      // Yield to the event loop so React can repaint between heavy CV+API calls.
       await new Promise(r => setTimeout(r, 0))
     }
 
@@ -144,11 +132,9 @@ export default function App() {
     setScanning(false)
   }
 
-  const cancelScan = () => {
-    cancelRef.current = true
-  }
+  const cancelScan = () => { cancelRef.current = true }
 
-  // ─── HITL verdict handlers ────────────────────────────
+  // ─── HITL verdict handlers (unchanged from previous build) ──────────
   const persistVerdict = async (photo, blobIndex, verdictRow) => {
     try {
       await recordVerdict({
@@ -161,9 +147,7 @@ export default function App() {
         thumb_b64: verdictRow.thumb_b64 ?? null,
         blob_geom: verdictRow.blob_geom ?? null,
       })
-    } catch (e) {
-      console.error('recordVerdict failed', e)
-    }
+    } catch (e) { console.error('recordVerdict failed', e) }
   }
 
   const handleVerdict = async (photo, blobIndex, verdict) => {
@@ -172,12 +156,9 @@ export default function App() {
     const next = applyVerdictToDetection(det, { ...verdict, targetWeeds: selectedSpeciesIds })
     const newDetections = photo.detections.map((d, i) => (i === blobIndex ? next : d))
     const updatedPhoto = recomputePhotoSummary({ ...photo, detections: newDetections })
-
     setResults(prev => prev.map(r => (r.hash === photo.hash ? updatedPhoto : r)))
     setSelectedPhoto(updatedPhoto)
-
     try { await putResult(updatedPhoto) } catch (e) { console.error(e) }
-
     await persistVerdict(updatedPhoto, blobIndex, {
       ai_verdict: det.ai_snapshot ?? {
         species: det.species,
@@ -199,16 +180,13 @@ export default function App() {
     const next = clearVerdictFromDetection(det)
     const newDetections = photo.detections.map((d, i) => (i === blobIndex ? next : d))
     const updatedPhoto = recomputePhotoSummary({ ...photo, detections: newDetections })
-
     setResults(prev => prev.map(r => (r.hash === photo.hash ? updatedPhoto : r)))
     setSelectedPhoto(updatedPhoto)
-
     try { await putResult(updatedPhoto) } catch (e) { console.error(e) }
     try { await removeVerdict(photo.hash, blobIndex) } catch (e) { console.error(e) }
   }
 
-  const resetSession = async ({ clearAnalysisCache = false, clearPassword = false } = {}) => {
-    // Revoke transient blob URLs so we don't leak memory.
+  const resetSession = async ({ clearAnalysisCache = false } = {}) => {
     for (const r of results) {
       if (r.previewUrl) {
         try { URL.revokeObjectURL(r.previewUrl) } catch {}
@@ -224,39 +202,60 @@ export default function App() {
     if (clearAnalysisCache) {
       try { await clearCache() } catch {}
     }
-    if (clearPassword) {
-      try { localStorage.removeItem('access_password') } catch {}
-    }
   }
 
-  return (
-    <div className="app">
-      <header className="header">
-        <div className="header-top">
-          <div>
-            <h1>Edmonton Weed Detector</h1>
-            <p>Browser-only multi-species blob detection + Gemini Vision. 18 regulated weeds. Photos stay on your machine.</p>
-          </div>
-          <nav className="top-nav">
-            <button
-              className={`top-nav-tab${tab === 'scan' ? ' active' : ''}`}
-              onClick={() => setTab('scan')}
-            >Scan</button>
-            <button
-              className={`top-nav-tab${tab === 'calendar' ? ' active' : ''}`}
-              onClick={() => setTab('calendar')}
-            >Calendar</button>
-            <button
-              className={`top-nav-tab${tab === 'science' ? ' active' : ''}`}
-              onClick={() => setTab('science')}
-            >Science</button>
-          </nav>
-        </div>
-      </header>
+  // ─── Layout helpers ─────────────────────────────────────────────────
+  const tabClass = (id) => `text-sm font-medium tracking-tight transition-colors duration-200 px-1 ${
+    tab === id
+      ? 'text-primary border-b-2 border-primary pb-1'
+      : 'text-on-surface-variant/70 hover:text-on-surface'
+  }`
 
-      <main className="main">
-        {tab === 'scan' && (
-          <>
+  const mobileTabClass = (id) => `flex flex-col items-center justify-center gap-0.5 flex-1 py-1.5 ${
+    tab === id ? 'text-primary scale-105' : 'text-on-surface-variant/60'
+  }`
+
+  return (
+    <div className="min-h-screen bg-background text-on-surface flex flex-col">
+      {/* ── Top nav (frosted glass, sticky) ──────────────────────────── */}
+      <nav className="fixed top-0 left-0 right-0 z-40 h-[56px] flex justify-between items-center px-4 md:px-6 bg-surface-container-low/85 backdrop-blur-xl">
+        <div className="flex items-center gap-3 min-w-0">
+          <button
+            className="md:hidden p-2 -ml-2 text-on-surface-variant hover:text-on-surface"
+            onClick={() => setSidebarOpen(o => !o)}
+            aria-label="Toggle sidebar"
+          >
+            <span className="material-symbols-outlined text-xl">menu</span>
+          </button>
+          <div className="w-2.5 h-2.5 rounded-full bg-primary shadow-[0_0_10px_rgba(221,183,255,0.6)] flex-shrink-0" />
+          <span className="text-base md:text-lg font-bold tracking-tighter text-on-surface truncate">
+            Edmonton Weed Detector
+          </span>
+        </div>
+        <div className="hidden md:flex items-center gap-8">
+          <button className={tabClass('scan')} onClick={() => setTab('scan')}>Scan</button>
+          <button className={tabClass('calendar')} onClick={() => setTab('calendar')}>Calendar</button>
+          <button className={tabClass('science')} onClick={() => setTab('science')}>Science</button>
+        </div>
+        <div className="flex items-center gap-2">
+          {results.length > 0 && (
+            <span className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-tertiary-container/20 text-tertiary text-[11px] font-bold uppercase tracking-wider">
+              <span className="w-1.5 h-1.5 rounded-full bg-tertiary" />
+              {results.filter(r => r.detected).length}/{results.length}
+            </span>
+          )}
+        </div>
+      </nav>
+
+      {/* ── Workspace ──────────────────────────────────────────────────── */}
+      <div className="flex flex-1 pt-[56px] pb-[44px] md:pb-0">
+        {/* Sidebar — fixed left on desktop, drawer on mobile */}
+        <aside
+          className={`fixed md:static top-[56px] left-0 z-30 h-[calc(100vh-56px-44px)] md:h-[calc(100vh-56px)] w-[320px] md:w-[340px] bg-surface-container-low transition-transform duration-200 ease-out ${
+            sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+          } ${tab === 'scan' ? 'block' : 'hidden md:hidden'}`}
+        >
+          {tab === 'scan' && (
             <FilePicker
               files={files}
               setFiles={setFiles}
@@ -267,36 +266,58 @@ export default function App() {
               onPhotoDateOverride={handlePhotoDateOverride}
               inSeasonOnly={inSeasonOnly}
               setInSeasonOnly={setInSeasonOnly}
-              onScan={startScan}
+              onScan={() => { startScan(); setSidebarOpen(false) }}
               onCancel={cancelScan}
               scanning={scanning}
               hasResults={results.length > 0}
               onReset={resetSession}
-              useProxy={USE_PROXY}
               fewShotEnabled={fewShotEnabled}
               setFewShotEnabled={setFewShotEnabled}
             />
+          )}
+        </aside>
 
-            {progress && <ScanProgress progress={progress} />}
-
-            {results.length > 0 && (
-              <PhotoGallery
-                results={results}
-                selected={selectedPhoto}
-                onSelect={setSelectedPhoto}
-              />
-            )}
-          </>
+        {/* Backdrop overlay when mobile drawer is open */}
+        {sidebarOpen && tab === 'scan' && (
+          <div
+            className="md:hidden fixed inset-0 top-[56px] z-20 bg-background/60 backdrop-blur-sm"
+            onClick={() => setSidebarOpen(false)}
+          />
         )}
 
-        {tab === 'calendar' && (
-          <SpeciesCalendar photoDate={photoDate} />
-        )}
+        {/* Main content area */}
+        <main className="flex-1 min-w-0 overflow-y-auto bg-background">
+          {tab === 'scan' && (
+            <ScanWorkspace
+              results={results}
+              scanning={scanning}
+              progress={progress}
+              selectedPhoto={selectedPhoto}
+              onSelect={setSelectedPhoto}
+              onOpenSidebar={() => setSidebarOpen(true)}
+              hasFiles={files.length > 0}
+            />
+          )}
+          {tab === 'calendar' && <SpeciesCalendar photoDate={photoDate} />}
+          {tab === 'science' && <ScienceTab />}
+        </main>
+      </div>
 
-        {tab === 'science' && (
-          <ScienceTab />
-        )}
-      </main>
+      {/* ── Mobile bottom nav ─────────────────────────────────────────── */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 h-[44px] bg-surface-container-low/90 backdrop-blur-lg shadow-[0_-4px_20px_rgba(0,0,0,0.4)] flex">
+        <button className={mobileTabClass('scan')} onClick={() => setTab('scan')}>
+          <span className="material-symbols-outlined text-lg">target</span>
+          <span className="text-[9px] uppercase tracking-widest font-semibold">Scan</span>
+        </button>
+        <button className={mobileTabClass('calendar')} onClick={() => setTab('calendar')}>
+          <span className="material-symbols-outlined text-lg">calendar_today</span>
+          <span className="text-[9px] uppercase tracking-widest font-semibold">Calendar</span>
+        </button>
+        <button className={mobileTabClass('science')} onClick={() => setTab('science')}>
+          <span className="material-symbols-outlined text-lg">science</span>
+          <span className="text-[9px] uppercase tracking-widest font-semibold">Science</span>
+        </button>
+      </nav>
 
       {selectedPhoto && (
         <PhotoDetail
@@ -306,6 +327,65 @@ export default function App() {
           onClearVerdict={handleClearVerdict}
         />
       )}
+    </div>
+  )
+}
+
+// ─── Scan workspace: empty state OR progress OR gallery ───────────────
+function ScanWorkspace({ results, scanning, progress, selectedPhoto, onSelect, onOpenSidebar, hasFiles }) {
+  if (results.length === 0 && !scanning) {
+    return <EmptyState onOpenSidebar={onOpenSidebar} hasFiles={hasFiles} />
+  }
+  return (
+    <div className="p-4 md:p-6 lg:p-8">
+      {progress && <ScanProgress progress={progress} />}
+      {results.length > 0 && (
+        <PhotoGallery results={results} selected={selectedPhoto} onSelect={onSelect} />
+      )}
+    </div>
+  )
+}
+
+function EmptyState({ onOpenSidebar, hasFiles }) {
+  return (
+    <div className="relative h-full min-h-[calc(100vh-56px-44px)] md:min-h-[calc(100vh-56px)] flex items-center justify-center p-6 md:p-8">
+      {/* Subtle background dot pattern */}
+      <div
+        className="absolute inset-0 opacity-20 pointer-events-none"
+        style={{
+          backgroundImage: 'radial-gradient(#33343b 1px, transparent 1px)',
+          backgroundSize: '24px 24px',
+        }}
+      />
+      <div className="relative max-w-2xl w-full p-8 md:p-12 rounded-[2rem] bg-surface-container-low/80 backdrop-blur-2xl text-center space-y-6 md:space-y-8">
+        <div className="relative inline-block">
+          <div className="absolute -inset-4 bg-primary/20 blur-3xl rounded-full" />
+          <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-full bg-surface-container-highest flex items-center justify-center mx-auto">
+            <span className="material-symbols-outlined text-4xl md:text-5xl text-primary" style={{ fontVariationSettings: "'wght' 200" }}>
+              add_a_photo
+            </span>
+          </div>
+        </div>
+        <div className="space-y-3 md:space-y-4">
+          <h1 className="text-2xl md:text-4xl font-extrabold tracking-tight text-on-surface">
+            Upload drone photos to begin
+          </h1>
+          <p className="text-on-surface-variant text-sm md:text-base font-light leading-relaxed max-w-md mx-auto">
+            Detects 18 regulated invasive weed species across the Edmonton river valley. Photos stay on your device — only small crops are sent to Gemini Vision for classification.
+          </p>
+        </div>
+        <div className="flex flex-col items-center gap-4">
+          <button
+            onClick={onOpenSidebar}
+            className="px-7 md:px-8 py-3 md:py-4 bg-gradient-to-r from-primary to-primary-container text-on-primary-container rounded-full font-black text-base md:text-lg shadow-[0_8px_30px_rgba(221,183,255,0.3)] hover:translate-y-[-2px] active:translate-y-[1px] transition-all"
+          >
+            {hasFiles ? 'Configure scan' : 'Choose photos'}
+          </button>
+          <p className="text-[11px] uppercase tracking-[0.2em] font-bold text-on-surface-variant/40">
+            JPEG, PNG, TIFF · ≤ 8K resolution
+          </p>
+        </div>
+      </div>
     </div>
   )
 }

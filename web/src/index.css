@@ -1,17 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Precision Obsidian — design system imported from Stitch.
+ * Tailwind tokens live in tailwind.config.js. The CSS variables below mirror
+ * the Tailwind palette so any legacy CSS that still uses var(--purple) etc.
+ * keeps working during the migration.
+ */
 :root {
-  --bg: #0f1117;
-  --surface: #1a1d27;
-  --surface2: #242736;
-  --border: #2d3147;
-  --text: #e2e8f0;
-  --text-muted: #8892a4;
-  --purple: #a855f7;
-  --purple-dim: rgba(168, 85, 247, 0.15);
-  --green: #22c55e;
-  --red: #ef4444;
-  --blue: #3b82f6;
-  --amber: #f59e0b;
+  --bg: #111319;
+  --surface: #191b22;
+  --surface2: #1e1f26;
+  --surface3: #282a30;
+  --surface4: #33343b;
+  --border: #4d4354;
+  --text: #e2e2eb;
+  --text-muted: #cfc2d6;
+  --purple: #ddb7ff;
+  --purple-dim: rgba(221, 183, 255, 0.15);
+  --green: #4ae176;
+  --red: #ffb4ab;
+  --blue: #adc6ff;
+  --amber: #facc15;
 }
+
+/* Material Symbols icon defaults — used everywhere via <span class="material-symbols-outlined">name</span> */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  vertical-align: middle;
+  font-family: 'Material Symbols Outlined';
+}
+
+/* Custom scrollbar — slim, dark, GIS-tool feel */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #111319; }
+::-webkit-scrollbar-thumb { background: #33343b; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: #4d4354; }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 

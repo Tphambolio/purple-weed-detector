@@ -4,6 +4,7 @@ import FilePicker from './components/FilePicker'
 import ScanProgress from './components/ScanProgress'
 import PhotoGallery from './components/PhotoGallery'
 import PhotoDetail from './components/PhotoDetail'
+import Repository from './components/Repository'
 import { scanFile } from './lib/scanner'
 import './index.css'
 
@@ -23,6 +24,7 @@ export default function App() {
   const [progress, setProgress] = useState(null)
   const [results, setResults] = useState([])
   const [selectedPhoto, setSelectedPhoto] = useState(null)
+  const [view, setView] = useState('scanner')   // 'scanner' | 'repository'
   const cancelRef = useRef(false)
 
   const startScan = async () => {
@@ -89,33 +91,42 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>Purple Weed Detector</h1>
-        <p>Browser-only blob detection + Gemini Vision. Photos stay on your machine.</p>
+        <div className="header-row">
+          <div>
+            <h1>Purple Weed Detector</h1>
+            <p>Browser-only blob detection + Gemini Vision. Photos stay on your machine.</p>
+          </div>
+          <nav className="header-nav">
+            <button className={`nav-tab${view === 'scanner'    ? ' active' : ''}`} onClick={() => setView('scanner')}>Scanner</button>
+            <button className={`nav-tab${view === 'repository' ? ' active' : ''}`} onClick={() => setView('repository')}>Repository</button>
+          </nav>
+        </div>
       </header>
 
       <main className="main">
-        {USE_PROXY && <AccessGate />}
+        {view === 'repository' && <Repository />}
+        {view === 'scanner' && USE_PROXY && <AccessGate />}
 
-        <FilePicker
-          files={files}
-          setFiles={setFiles}
-          selectedWeeds={selectedWeeds}
-          setSelectedWeeds={setSelectedWeeds}
-          weedOptions={WEED_OPTIONS}
-          onScan={startScan}
-          onCancel={cancelScan}
-          scanning={scanning}
-        />
-
-        {progress && <ScanProgress progress={progress} />}
-
-        {results.length > 0 && (
-          <PhotoGallery
-            results={results}
-            selected={selectedPhoto}
-            onSelect={setSelectedPhoto}
+        {view === 'scanner' && <>
+          <FilePicker
+            files={files}
+            setFiles={setFiles}
+            selectedWeeds={selectedWeeds}
+            setSelectedWeeds={setSelectedWeeds}
+            weedOptions={WEED_OPTIONS}
+            onScan={startScan}
+            onCancel={cancelScan}
+            scanning={scanning}
           />
-        )}
+          {progress && <ScanProgress progress={progress} />}
+          {results.length > 0 && (
+            <PhotoGallery
+              results={results}
+              selected={selectedPhoto}
+              onSelect={setSelectedPhoto}
+            />
+          )}
+        </>}
       </main>
 
       {selectedPhoto && (

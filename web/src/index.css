@@ -598,3 +598,289 @@ body {
   outline: none;
   border-color: var(--purple);
 }
+
+/* Header nav */
+.header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.header-nav {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.nav-tab {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.nav-tab:hover { color: var(--text); border-color: var(--purple); }
+.nav-tab.active { color: var(--purple); border-color: var(--purple); background: var(--purple-dim); font-weight: 600; }
+
+/* Annotation canvas */
+.annotation-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: default;
+  z-index: 10;
+}
+
+.annotation-canvas.active { cursor: crosshair; }
+
+/* Species picker popup */
+.annotation-picker {
+  position: absolute;
+  z-index: 20;
+  background: var(--surface2);
+  border: 1px solid var(--purple);
+  border-radius: 8px;
+  padding: 12px;
+  width: 210px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.annotation-picker-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.annotation-species-select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  color: var(--text);
+  font-size: 13px;
+  width: 100%;
+}
+
+.annotation-species-select:focus {
+  outline: none;
+  border-color: var(--purple);
+}
+
+.annotation-picker-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 5px;
+}
+
+/* Annotate button in detail panel */
+.btn-annotate {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 14px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  align-self: flex-start;
+}
+
+.btn-annotate:hover:not(:disabled) { border-color: var(--purple); color: var(--purple); }
+.btn-annotate.active { background: var(--purple-dim); border-color: var(--purple); color: var(--purple); }
+.btn-annotate:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Confirmed annotation boxes on image */
+.bbox-confirmed {
+  position: absolute;
+  border: 2px solid #22c55e;
+  box-shadow: 0 0 0 1px rgba(34,197,94,0.4);
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.confirmed-label {
+  position: absolute;
+  bottom: -22px;
+  left: 0;
+  white-space: nowrap;
+  background: rgba(0,0,0,0.85);
+  color: #86efac;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Confirmed IDs list in detail panel */
+.confirmed-id-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.confirmed-id-row:last-child { border-bottom: none; }
+
+.confirmed-crop {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.confirmed-id-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.confirmed-id-delete {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+
+.confirmed-id-delete:hover { color: var(--red); background: rgba(239,68,68,0.1); }
+
+/* Repository view */
+.repository-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.repository-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.repository-header h2 {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.repository-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.repository-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.repo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 2px;
+  padding: 2px;
+}
+
+.repo-item {
+  position: relative;
+  background: var(--bg);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.repo-item img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  display: block;
+}
+
+.repo-no-crop {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 11px;
+  background: var(--surface2);
+}
+
+.repo-item-info {
+  padding: 6px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.repo-species {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--purple);
+}
+
+.repo-filename {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.repo-date {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.repo-delete {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background: rgba(0,0,0,0.7);
+  border: none;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.6);
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.repo-item:hover .repo-delete { opacity: 1; }
+.repo-delete:hover { color: var(--red); }

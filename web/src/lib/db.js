@@ -5,8 +5,11 @@ import Dexie from 'dexie'
 
 export const db = new Dexie('purple_weed_detector')
 db.version(1).stores({
-  // hash is the primary key — SHA-256 of the file bytes.
   results: 'hash, filename, scanned_at',
+})
+db.version(2).stores({
+  results: 'hash, filename, scanned_at',
+  annotations: '++id, imageHash, species, created_at',
 })
 
 export async function hashFile(file) {
@@ -32,4 +35,20 @@ export async function putResult(result) {
 
 export async function clearCache() {
   await db.results.clear()
+}
+
+export async function saveAnnotation(annotation) {
+  return await db.annotations.add({ ...annotation, created_at: new Date().toISOString() })
+}
+
+export async function getAnnotationsForImage(imageHash) {
+  return await db.annotations.where('imageHash').equals(imageHash).toArray()
+}
+
+export async function getAllAnnotations() {
+  return await db.annotations.orderBy('created_at').reverse().toArray()
+}
+
+export async function deleteAnnotation(id) {
+  await db.annotations.delete(id)
 }

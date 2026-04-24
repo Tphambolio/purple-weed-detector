@@ -25,6 +25,8 @@ from typing import Optional
 
 import functions_framework
 import requests
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
 from google.cloud import secretmanager
 
 MODEL = "gemini-2.5-flash"
@@ -32,7 +34,9 @@ GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
     f"{MODEL}:generateContent"
 )
-SECRET_NAME = "gemini-api-key"
+SECRET_NAME    = "gemini-api-key"
+OAUTH_CLIENT   = "3812854088-90tkc9c1kle914dmo7gal7ds6n4ae50a.apps.googleusercontent.com"
+ALLOWED_DOMAIN = "edmonton.ca"
 
 # Cold-start cache for the API key. Populated on the first request.
 _API_KEY: Optional[str] = None
@@ -42,7 +46,7 @@ def _cors_headers(extra: Optional[dict] = None) -> dict:
     headers = {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, X-Access-Password",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
     }
     if extra:
         headers.update(extra)
@@ -103,11 +107,22 @@ def gemini_proxy(request):
             _cors_headers(),
         )
 
-    # NOTE: access-password gate intentionally removed at user request so the
-    # tool is openly accessible for the City of Edmonton field team. The proxy
-    # is rate-limited only by Gemini quotas — if abuse becomes an issue,
-    # re-enable the X-Access-Password check by reading ACCESS_PASSWORD from
-    # the function env and comparing.
+    # Verify Google ID token — only @edmonton.ca accounts allowed.
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return ("Unauthorized", 401, _cors_headers())
+    token = auth_header[len("Bearer "):]
+    try:
+        payload = id_token.verify_oauth2_token(
+            token,
+            google_requests.Request(),
+            OAUTH_CLIENT,
+        )
+        email = payload.get("email", "")
+        if not email.endswith(f"@{ALLOWED_DOMAIN}"):
+            return (f"Forbidden: {email} is not an @{ALLOWED_DOMAIN} account", 403, _cors_headers())
+    except Exception as e:
+        return (f"Invalid token: {str(e)[:200]}", 401, _cors_headers())
 
     body = request.get_json(silent=True)
     if body is None:

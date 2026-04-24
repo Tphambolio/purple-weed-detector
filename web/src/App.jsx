@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import AccessGate from './components/AccessGate'
+import GoogleAuthGate from './components/GoogleAuthGate'
 import FilePicker from './components/FilePicker'
 import ScanProgress from './components/ScanProgress'
 import PhotoGallery from './components/PhotoGallery'
@@ -7,8 +7,6 @@ import PhotoDetail from './components/PhotoDetail'
 import Repository from './components/Repository'
 import { scanFile } from './lib/scanner'
 import './index.css'
-
-const USE_PROXY = !!import.meta.env.VITE_USE_PROXY
 
 const WEED_OPTIONS = [
   { value: 'any', label: 'Any purple weed' },
@@ -89,6 +87,7 @@ export default function App() {
   }
 
   return (
+    <GoogleAuthGate>
     <div className="app">
       <header className="header">
         <div className="header-row">
@@ -105,7 +104,6 @@ export default function App() {
 
       <main className="main">
         {view === 'repository' && <Repository />}
-        {view === 'scanner' && USE_PROXY && <AccessGate />}
 
         {view === 'scanner' && <>
           <FilePicker
@@ -133,5 +131,6 @@ export default function App() {
         <PhotoDetail photo={selectedPhoto} onClose={() => setSelectedPhoto(null)} />
       )}
     </div>
+    </GoogleAuthGate>
   )
 }

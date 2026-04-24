@@ -61,7 +61,7 @@ def _load_credentials() -> Credentials:
 
     if creds and creds.expired and creds.refresh_token:
         creds.refresh(Request())
-        TOKEN_FILE.write_text(creds.to_json())
+        _write_token(creds)
         return creds
 
     if not CREDENTIALS_FILE.exists():
@@ -72,8 +72,17 @@ def _load_credentials() -> Credentials:
 
     flow = InstalledAppFlow.from_client_secrets_file(str(CREDENTIALS_FILE), SCOPES)
     creds = flow.run_local_server(port=0)
-    TOKEN_FILE.write_text(creds.to_json())
+    _write_token(creds)
     return creds
+
+
+def _write_token(creds: Credentials) -> None:
+    """Persist OAuth token with owner-only permissions (0600)."""
+    TOKEN_FILE.write_text(creds.to_json())
+    try:
+        os.chmod(TOKEN_FILE, 0o600)
+    except OSError:
+        pass  # Windows / filesystems without POSIX perms
 
 
 def _get_service():

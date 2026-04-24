@@ -4,6 +4,7 @@ Yields ScanStatus objects for SSE streaming. Supports both local folders
 and Google Drive folders.
 """
 import asyncio
+import os
 from pathlib import Path
 from typing import AsyncGenerator, List
 
@@ -15,6 +16,40 @@ from models import Detection, PhotoResult, ScanStatus, WeedType
 from prefilter import find_purple_blobs
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".tiff", ".tif"}
+
+
+def _allowed_roots() -> list[Path]:
+    """Whitelist of directories the scanner may traverse. Set via env
+    SCAN_ROOTS=/path/one:/path/two. Defaults to the user's home dir."""
+    raw = os.getenv("SCAN_ROOTS")
+    if raw:
+        roots = [Path(p).expanduser().resolve() for p in raw.split(os.pathsep) if p.strip()]
+    else:
+        roots = [Path.home().resolve()]
+    return roots
+
+
+def validate_scan_root(folder: str) -> Path:
+    """Resolve the folder, follow symlinks, and confirm it lives under an
+    allowed root. Raises ValueError with a user-safe message."""
+    if not folder or not folder.strip():
+        raise ValueError("Folder path is required")
+    try:
+        resolved = Path(folder).expanduser().resolve(strict=True)
+    except (FileNotFoundError, OSError):
+        raise ValueError(f"Folder not found: {folder}")
+    if not resolved.is_dir():
+        raise ValueError(f"Not a directory: {folder}")
+
+    roots = _allowed_roots()
+    for root in roots:
+        try:
+            resolved.relative_to(root)
+            return resolved
+        except ValueError:
+            continue
+    allowed = ", ".join(str(r) for r in roots)
+    raise ValueError(f"Folder is outside allowed roots ({allowed})")
 
 
 async def _process_image(
@@ -112,16 +147,26 @@ async def scan_folder(
     force_rescan: bool = False,
 ) -> AsyncGenerator[ScanStatus, None]:
 
-    folder_path = Path(folder)
-    if not folder_path.exists() or not folder_path.is_dir():
+    try:
+        folder_path = validate_scan_root(folder)
+    except ValueError as e:
         yield ScanStatus(status="error", total=0, processed=0, detected=0,
-                         current_file=f"Folder not found: {folder}")
+                         current_file=str(e))
         return
 
-    images = sorted(
-        p for p in folder_path.rglob("*")
-        if p.suffix.lower() in IMAGE_EXTENSIONS
-    )
+    def _iter_images():
+        for p in folder_path.rglob("*"):
+            if not p.is_file() or p.is_symlink():
+                continue
+            if p.suffix.lower() not in IMAGE_EXTENSIONS:
+                continue
+            try:
+                p.resolve(strict=True).relative_to(folder_path)
+            except (ValueError, OSError):
+                continue
+            yield p
+
+    images = sorted(_iter_images())
 
     total = len(images)
     processed = 0

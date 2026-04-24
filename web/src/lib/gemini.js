@@ -2,7 +2,7 @@
 // the Cloudflare Pages Function holds the API key and verifies the caller's
 // Google ID token (@edmonton.ca only). No direct Gemini calls from the browser.
 
-const PROXY_URL = '/api/gemini'
+const PROXY_URL = import.meta.env.VITE_API_BASE_URL || '/api/gemini'
 
 const WEED_DESCRIPTIONS = {
   purple_loosestrife: 'Purple Loosestrife (Lythrum salicaria) — tall spikes of magenta-purple flowers, wetland edges',
